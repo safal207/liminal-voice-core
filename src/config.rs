@@ -29,6 +29,8 @@ pub struct Config {
     pub stab_low_res: f32,
     pub stab_cool: usize,
     pub stab_calm: f32,
+    pub memory: bool,
+    pub memory_path: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -77,6 +79,8 @@ impl Default for Config {
             stab_low_res: 0.58,
             stab_cool: 3,
             stab_calm: 0.08,
+            memory: true,
+            memory_path: "device_memory.jsonl".to_string(),
         }
     }
 }
@@ -144,6 +148,16 @@ pub fn from_env_or_args() -> Config {
         cfg.enable_logging = enable_log;
     }
 
+    if let Some(memory) = parse_env_bool("LIMINAL_MEMORY") {
+        cfg.memory = memory;
+    }
+
+    if let Ok(path) = env::var("LIMINAL_MEMORY_PATH") {
+        if !path.trim().is_empty() {
+            cfg.memory_path = path;
+        }
+    }
+
     if let Ok(dir) = env::var("LIMINAL_LOG_DIR") {
         if !dir.trim().is_empty() {
             cfg.log_dir = dir;
@@ -205,6 +219,19 @@ pub fn from_env_or_args() -> Config {
                 if let Some(val) = args.next() {
                     if !val.trim().is_empty() {
                         cfg.log_dir = val;
+                    }
+                }
+            }
+            "--memory" => {
+                cfg.memory = true;
+            }
+            "--no-memory" => {
+                cfg.memory = false;
+            }
+            "--memory-path" => {
+                if let Some(val) = args.next() {
+                    if !val.trim().is_empty() {
+                        cfg.memory_path = val;
                     }
                 }
             }
