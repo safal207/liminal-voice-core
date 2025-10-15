@@ -42,3 +42,28 @@ pub fn synthesize_response(cfg: &Config, prof: &DeviceProfile, text: &str) {
         cfg.sample_rate, cfg.channels, prof.gain_db
     );
 }
+
+pub fn synthesize_with(cfg: &Config, prof: &DeviceProfile, pace: f32, pause_ms: u64, text: &str) {
+    let pace = pace.clamp(0.5, 2.0);
+    let pause = pause_ms.clamp(20, 250);
+    println!(
+        "[voice] TTS rendering (pace={:.2}, pause={}ms)...",
+        pace, pause
+    );
+
+    let base_latency = (pause / 2).saturating_add(cfg.frame_ms as u64);
+    let pace_adjust = if pace < 1.0 {
+        ((1.0 - pace) * 80.0).round() as u64
+    } else {
+        ((pace - 1.0) * 40.0).round() as u64
+    };
+    let latency_ms = base_latency.saturating_add(pace_adjust);
+
+    thread::sleep(Duration::from_millis(latency_ms));
+    println!("[voice] TTS done (latency={}ms)", latency_ms);
+    println!("[voice] response: {}", text);
+    println!(
+        "[voice] audio sr={} ch={} gain={:.1}dB",
+        cfg.sample_rate, cfg.channels, prof.gain_db
+    );
+}

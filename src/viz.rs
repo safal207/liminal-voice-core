@@ -1,4 +1,5 @@
 use crate::metrics;
+use crate::stabilizer::EmoState;
 
 const LABEL_WIDTH: usize = 22;
 const VALUE_WIDTH: usize = 25;
@@ -26,6 +27,7 @@ pub fn print_table(
     asr_ms: u128,
     tts_ms: u128,
     total_ms: u128,
+    stab_state: Option<&str>,
 ) -> Vec<String> {
     let mut lines = Vec::new();
     let border = format!(
@@ -58,6 +60,9 @@ pub fn print_table(
         "Latency (ASR/TTS/T)",
         &format!("{}ms / {}ms / {}ms", asr_ms, tts_ms, total_ms),
     ));
+    if let Some(state) = stab_state {
+        lines.push(format_row("Stabilizer State", state));
+    }
 
     lines.push(border);
 
@@ -66,6 +71,15 @@ pub fn print_table(
     }
 
     lines
+}
+
+pub fn print_compact_stabilizer(state: EmoState, ema_drift: f32, ema_res: f32) {
+    println!(
+        "[stab] {:?} d={:.2} r={:.2}",
+        state,
+        ema_drift.clamp(0.0, 1.0),
+        ema_res.clamp(0.0, 1.0)
+    );
 }
 
 fn format_bar_entry(value: f32) -> String {

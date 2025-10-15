@@ -8,6 +8,7 @@ pub mod prosody;
 pub mod session;
 pub mod softguard;
 pub mod spark;
+pub mod stabilizer;
 pub mod utils;
 pub mod viz;
 pub mod voice_io;

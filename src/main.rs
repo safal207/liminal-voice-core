@@ -8,6 +8,7 @@ mod prosody;
 mod session;
 mod softguard;
 mod spark;
+mod stabilizer;
 mod utils;
 mod viz;
 mod voice_io;
@@ -74,6 +75,20 @@ fn main() {
         rephrase_factor: cfg.guard_factor,
     };
 
+    let mut stabilizer = if cfg.stabilizer {
+        Some(stabilizer::Stabilizer::new(stabilizer::StabilizerCfg {
+            win: cfg.stab_win,
+            ema_alpha: cfg.stab_alpha,
+            warm_drift: cfg.stab_warm,
+            hot_drift: cfg.stab_hot,
+            low_res: cfg.stab_low_res,
+            cool_steps: cfg.stab_cool,
+            calm_boost: cfg.stab_calm,
+        }))
+    } else {
+        None
+    };
+
     for (idx, utterance) in utterances.iter().enumerate() {
         let mut vm = metrics::start();
 
@@ -87,6 +102,32 @@ fn main() {
         drift = metrics::clamp01(drift);
         res = metrics::clamp01(res);
 
+        let mut articulation = prosody.articulation;
+        let mut effective_pace = prof.pace_factor;
+        let mut effective_pause_ms = prof.pause_ms as i64;
+        let mut stab_state_label: Option<String> = None;
+
+        if let Some(stab) = stabilizer.as_mut() {
+            stab.push(drift, res);
+            let advice = stab.advice();
+            effective_pace = (prof.pace_factor + advice.pace_delta).clamp(0.7, 1.3);
+            effective_pause_ms = (prof.pause_ms as i64 + advice.pause_delta_ms).clamp(20, 250);
+            articulation =
+                prosody::apply_articulation_hint(prosody.articulation, advice.articulation_hint);
+            println!(
+                "{}",
+                stabilizer::format_status(stab.state, stab.ema_drift, stab.ema_res)
+            );
+            if let VizMode::Compact = cfg.viz_mode {
+                viz::print_compact_stabilizer(stab.state, stab.ema_drift, stab.ema_res);
+            }
+            stab_state_label = Some(format!("{:?}", stab.state));
+        }
+
+        let effective_pause_ms = effective_pause_ms.clamp(20, 250);
+        let effective_pause_u64 = effective_pause_ms as u64;
+        let effective_pace = effective_pace.clamp(0.7, 1.3);
+
         let mut guard_flag = None;
         if cfg.guard {
             match softguard::check_and_rephrase(&text, drift, res, &guard_cfg) {
@@ -97,18 +138,38 @@ fn main() {
                 }
                 GuardAction::Rephrased(new_text) => {
                     println!("[voice-core] {}", new_text);
-                    voice_io::synthesize_response(&cfg, &prof, &new_text);
+                    if cfg.stabilizer {
+                        voice_io::synthesize_with(
+                            &cfg,
+                            &prof,
+                            effective_pace,
+                            effective_pause_u64,
+                            &new_text,
+                        );
+                    } else {
+                        voice_io::synthesize_response(&cfg, &prof, &new_text);
+                    }
                     guard_flag = Some("rephrased".to_string());
                 }
             }
         }
 
         let tts_start = Instant::now();
-        voice_io::synthesize_response(
-            &cfg,
-            &prof,
-            &format!("Semantic Drift: {:.2}, Resonance: {:.2}", drift, res),
-        );
+        if cfg.stabilizer {
+            voice_io::synthesize_with(
+                &cfg,
+                &prof,
+                effective_pace,
+                effective_pause_u64,
+                &format!("Semantic Drift: {:.2}, Resonance: {:.2}", drift, res),
+            );
+        } else {
+            voice_io::synthesize_response(
+                &cfg,
+                &prof,
+                &format!("Semantic Drift: {:.2}, Resonance: {:.2}", drift, res),
+            );
+        }
         vm.tts_ms = tts_start.elapsed().as_millis();
 
         metrics::finish(&mut vm);
@@ -126,7 +187,7 @@ fn main() {
             drift,
             resonance: res,
             wpm: prosody.wpm,
-            articulation: prosody.articulation,
+            articulation,
             tone: format!("{:?}", prosody.tone),
             asr_ms: vm.asr_ms,
             tts_ms: vm.tts_ms,
@@ -134,6 +195,7 @@ fn main() {
             idx,
             utterance: text.clone(),
             guard: guard_flag.clone(),
+            state: stab_state_label.clone(),
         };
 
         if let Some(sess) = session_handle.as_mut() {
@@ -154,6 +216,12 @@ fn main() {
 
     if let VizMode::Full = cfg.viz_mode {
         if let Some(ref snap) = last_snapshot {
+            let stab_detail = stabilizer.as_ref().map(|stab| {
+                format!(
+                    "{:?} (EMA d={:.2} r={:.2})",
+                    stab.state, stab.ema_drift, stab.ema_res
+                )
+            });
             viz::print_table(
                 snap.drift,
                 snap.resonance,
@@ -163,6 +231,7 @@ fn main() {
                 snap.asr_ms,
                 snap.tts_ms,
                 snap.total_ms,
+                stab_detail.as_deref(),
             );
         }
     }

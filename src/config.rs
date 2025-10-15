@@ -21,6 +21,14 @@ pub struct Config {
     pub guard_drift: f32,
     pub guard_res: f32,
     pub guard_factor: f32,
+    pub stabilizer: bool,
+    pub stab_win: usize,
+    pub stab_alpha: f32,
+    pub stab_warm: f32,
+    pub stab_hot: f32,
+    pub stab_low_res: f32,
+    pub stab_cool: usize,
+    pub stab_calm: f32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -61,6 +69,14 @@ impl Default for Config {
             guard_drift: 0.40,
             guard_res: 0.60,
             guard_factor: 0.2,
+            stabilizer: true,
+            stab_win: 5,
+            stab_alpha: 0.4,
+            stab_warm: 0.32,
+            stab_hot: 0.42,
+            stab_low_res: 0.58,
+            stab_cool: 3,
+            stab_calm: 0.08,
         }
     }
 }
@@ -251,6 +267,65 @@ pub fn from_env_or_args() -> Config {
                 if let Some(val) = args.next() {
                     if let Ok(v) = val.parse::<f32>() {
                         cfg.guard_factor = v;
+                    }
+                }
+            }
+            "--stabilizer" => {
+                cfg.stabilizer = true;
+            }
+            "--no-stabilizer" => {
+                cfg.stabilizer = false;
+            }
+            "--stab-win" => {
+                if let Some(val) = args.next() {
+                    if let Ok(v) = val.parse::<usize>() {
+                        if v > 0 {
+                            cfg.stab_win = v;
+                        }
+                    }
+                }
+            }
+            "--stab-alpha" => {
+                if let Some(val) = args.next() {
+                    if let Ok(v) = val.parse::<f32>() {
+                        cfg.stab_alpha = v;
+                    }
+                }
+            }
+            "--stab-warm" => {
+                if let Some(val) = args.next() {
+                    if let Ok(v) = val.parse::<f32>() {
+                        cfg.stab_warm = v;
+                    }
+                }
+            }
+            "--stab-hot" => {
+                if let Some(val) = args.next() {
+                    if let Ok(v) = val.parse::<f32>() {
+                        cfg.stab_hot = v;
+                    }
+                }
+            }
+            "--stab-lowres" => {
+                if let Some(val) = args.next() {
+                    if let Ok(v) = val.parse::<f32>() {
+                        cfg.stab_low_res = v;
+                    }
+                }
+            }
+            "--stab-cool" => {
+                if let Some(val) = args.next() {
+                    if let Ok(v) = val.parse::<usize>() {
+                        if v > 0 {
+                            cfg.stab_cool = v;
+                        }
+                    }
+                }
+            }
+            "--stab-calm" => {
+                if let Some(val) = args.next() {
+                    if let Ok(v) = val.parse::<f32>() {
+                        cfg.stab_calm = v;
                     }
                 }
             }
