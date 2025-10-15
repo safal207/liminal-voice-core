@@ -23,6 +23,8 @@ pub struct Snapshot {
     pub asr_ms: u128,
     pub tts_ms: u128,
     pub total_ms: u128,
+    pub idx: usize,
+    pub utterance: String,
 }
 
 pub fn start(cycles: usize, log_dir: &str) -> Session {
@@ -50,7 +52,7 @@ pub fn write(sess: &mut Session, snap: &Snapshot) -> io::Result<()> {
         .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "session file not opened"))?;
 
     let line = format!(
-        r#"{{"ts":"{}","device":"{}","drift":{:.3},"resonance":{:.3},"wpm":{:.3},"articulation":{:.3},"tone":"{}","asr_ms":{},"tts_ms":{},"total_ms":{}}}"#,
+        r#"{{"ts":"{}","device":"{}","drift":{:.3},"resonance":{:.3},"wpm":{:.3},"articulation":{:.3},"tone":"{}","asr_ms":{},"tts_ms":{},"total_ms":{},"idx":{},"utt":"{}"}}"#,
         escape_json(&snap.ts),
         escape_json(&snap.device),
         snap.drift,
@@ -60,7 +62,9 @@ pub fn write(sess: &mut Session, snap: &Snapshot) -> io::Result<()> {
         escape_json(&snap.tone),
         snap.asr_ms,
         snap.tts_ms,
-        snap.total_ms
+        snap.total_ms,
+        snap.idx,
+        escape_json(&snap.utterance)
     );
 
     writeln!(file, "{}", line)

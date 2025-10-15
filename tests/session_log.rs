@@ -31,11 +31,15 @@ fn session_writes_jsonl() -> std::io::Result<()> {
         asr_ms: 10,
         tts_ms: 20,
         total_ms: 35,
+        idx: 0,
+        utterance: "hello liminal".to_string(),
     };
 
     let snapshot2 = session::Snapshot {
         ts: "2024-01-01T00:00:01.000Z".into(),
         tone: "Energetic".into(),
+        idx: 1,
+        utterance: "second".into(),
         ..snapshot1.clone()
     };
 
