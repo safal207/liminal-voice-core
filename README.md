@@ -180,3 +180,25 @@ cargo run -- --mode phone --memory
 ...
 [memory] saved updated profile for Phone
 ```
+
+# Iteration 1.8 — Emotive Echo
+
+## Overview
+- Persists the end-of-session emotional seed (EMA drift, resonance, tone, and pace) and carries it into the next run.
+- Applies an exponential half-life (default 180 minutes) so long-idle sessions gently relax back toward neutral drift/resonance and pace.
+- Adds a subtle warm-start bias to resonance for faster stabilization and surfaces the loaded seed in full visualization mode.
+
+## Usage Examples
+
+```bash
+cargo run -- --viz full --emote
+cargo run -- --emote-half-life 60 --emote-warm 0.03
+```
+
+## Sample Console Output
+
+```
+[emote] seed loaded tone=Calm ema_drift=0.29 ema_res=0.73 wpm=152
+...
+[emote] saved tone=Neutral ema_drift=0.31 ema_res=0.71 wpm=160
+```
