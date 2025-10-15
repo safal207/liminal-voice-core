@@ -160,3 +160,23 @@ cargo run -- --script "fast;faster;calm;steady" --viz full --stabilizer --stab-h
 [stab] Overheat d=0.41 r=0.57
 | Stabilizer State     | Overheat (EMA d=0.41 r=0.57) |
 ```
+
+# Iteration 1.7 — Device Memory & Adaptive Profile
+
+## Purpose
+- Persists per-device conversational memory, capturing average pace, pause, articulation, drift, and resonance across sessions.
+- Preloads gentle adaptive biasing so subsequent runs inherit the prior device tendencies without requiring an external database.
+
+## Example Run
+
+```bash
+cargo run -- --mode phone --memory
+```
+
+### Sample Console Output
+
+```
+[memory] loaded avg_pace=1.02 pause=62.0 art=0.75
+...
+[memory] saved updated profile for Phone
+```

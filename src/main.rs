@@ -2,6 +2,7 @@ mod adaptive_qa;
 mod alerts;
 mod config;
 mod device;
+mod device_memory;
 mod dialog;
 mod metrics;
 mod prosody;
@@ -45,7 +46,21 @@ fn main() {
         device::DeviceMode::Headset => "headset".to_string(),
         device::DeviceMode::Terminal => "terminal".to_string(),
     };
-    let prof = device::profile(&mode);
+    let mut prof = device::profile(&mode);
+
+    let device_key = format!("{:?}", mode);
+    let mut mem_store = if cfg.memory {
+        device_memory::DeviceMemoryStore::load(&cfg.memory_path)
+    } else {
+        device_memory::DeviceMemoryStore::default()
+    };
+    if let Some(memory) = device_memory::suggest_profile(&mem_store, &device_key) {
+        println!(
+            "[memory] loaded avg_pace={:.2} pause={:.1} art={:.2}",
+            memory.avg_pace, memory.avg_pause, memory.avg_articulation
+        );
+        prof.pace_factor = (prof.pace_factor + memory.avg_pace * 0.1).clamp(0.7, 1.3);
+    }
 
     let mut session_handle = if cfg.enable_logging {
         let mut sess = session::start(cfg.cycles, &cfg.log_dir);
@@ -88,6 +103,10 @@ fn main() {
     } else {
         None
     };
+
+    let mut last_articulation: Option<f32> = None;
+    let mut last_drift: Option<f32> = None;
+    let mut last_res: Option<f32> = None;
 
     for (idx, utterance) in utterances.iter().enumerate() {
         let mut vm = metrics::start();
@@ -198,6 +217,10 @@ fn main() {
             state: stab_state_label.clone(),
         };
 
+        last_articulation = Some(articulation);
+        last_drift = Some(drift);
+        last_res = Some(res);
+
         if let Some(sess) = session_handle.as_mut() {
             if let Err(err) = session::write(sess, &snapshot) {
                 eprintln!("[log] failed to write snapshot: {}", err);
@@ -233,6 +256,21 @@ fn main() {
                 snap.total_ms,
                 stab_detail.as_deref(),
             );
+        }
+    }
+
+    if cfg.memory {
+        if let (Some(art), Some(drift), Some(res)) = (last_articulation, last_drift, last_res) {
+            mem_store.update(
+                &device_key,
+                prof.pace_factor,
+                prof.pause_ms as f32,
+                art,
+                drift,
+                res,
+            );
+            mem_store.save();
+            println!("[memory] saved updated profile for {:?}", mode);
         }
     }
 
