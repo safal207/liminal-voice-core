@@ -11,6 +11,12 @@ pub struct Config {
     pub cycles: usize,
     pub enable_logging: bool,
     pub log_dir: String,
+    pub script: Option<String>,
+    pub inputs_path: Option<String>,
+    pub baseline_drift: f32,
+    pub baseline_res: f32,
+    pub alarm: bool,
+    pub strict: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -41,6 +47,12 @@ impl Default for Config {
             cycles: 5,
             enable_logging: false,
             log_dir: "logs".to_string(),
+            script: None,
+            inputs_path: None,
+            baseline_drift: 0.35,
+            baseline_res: 0.65,
+            alarm: true,
+            strict: false,
         }
     }
 }
@@ -171,6 +183,41 @@ pub fn from_env_or_args() -> Config {
                         cfg.log_dir = val;
                     }
                 }
+            }
+            "--script" => {
+                if let Some(val) = args.next() {
+                    cfg.script = Some(val);
+                }
+            }
+            "--inputs" => {
+                if let Some(val) = args.next() {
+                    if !val.trim().is_empty() {
+                        cfg.inputs_path = Some(val);
+                    }
+                }
+            }
+            "--baseline-drift" => {
+                if let Some(val) = args.next() {
+                    if let Ok(v) = val.parse::<f32>() {
+                        cfg.baseline_drift = v;
+                    }
+                }
+            }
+            "--baseline-res" => {
+                if let Some(val) = args.next() {
+                    if let Ok(v) = val.parse::<f32>() {
+                        cfg.baseline_res = v;
+                    }
+                }
+            }
+            "--alarm" => {
+                cfg.alarm = true;
+            }
+            "--no-alarm" => {
+                cfg.alarm = false;
+            }
+            "--strict" => {
+                cfg.strict = true;
             }
             _ => {}
         }

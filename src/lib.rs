@@ -1,6 +1,8 @@
 pub mod adaptive_qa;
+pub mod alerts;
 pub mod config;
 pub mod device;
+pub mod dialog;
 pub mod metrics;
 pub mod prosody;
 pub mod session;

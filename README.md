@@ -90,3 +90,24 @@ cargo run -- --viz full --log --log-dir logs
 ```
 
 When logging is enabled, each run writes snapshots to `logs/session-<id>.jsonl` with one JSON object per line capturing timing, tone, and adaptive QA telemetry.
+
+# Iteration 1.4 — Micro-Dialogs & Alerts
+
+## Usage Examples
+
+```bash
+cargo run -- --script "hi;how are you;count to five"
+cargo run -- --inputs samples/dialog.txt --viz full --alarm --baseline-drift 0.30 --baseline-res 0.70
+cargo run -- --script "fast;calm;focus" --strict
+```
+
+### Sample Health Summary
+
+```
+[viz] resonance  ▁▃▅▆█
+[viz] drift      ▁▂▂▃▄
+[health] baseline_drift>0.35, baseline_res<0.65
+[health] breaches: drift=1, res=0, total=5
+[health] worst: drift_max=0.44, res_min=0.62
+[health] status: ATTENTION ⚠️
+```

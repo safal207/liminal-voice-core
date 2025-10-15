@@ -1,6 +1,8 @@
 mod adaptive_qa;
+mod alerts;
 mod config;
 mod device;
+mod dialog;
 mod metrics;
 mod prosody;
 mod session;
@@ -11,10 +13,29 @@ mod voice_io;
 
 use std::time::Instant;
 
+use alerts::AlertStats;
 use config::VizMode;
 
 fn main() {
     let mut cfg = config::from_env_or_args();
+    let mut utterances = dialog::load_inputs(&cfg);
+    if utterances.len() > cfg.cycles {
+        cfg.cycles = utterances.len();
+    }
+
+    if cfg.cycles > utterances.len() {
+        let default = dialog::default_utterance().to_string();
+        let mut padded = Vec::with_capacity(cfg.cycles);
+        for idx in 0..cfg.cycles {
+            let text = utterances
+                .get(idx)
+                .cloned()
+                .unwrap_or_else(|| default.clone());
+            padded.push(text);
+        }
+        utterances = padded;
+    }
+
     let mode = device::detect(&cfg.mode);
     cfg.mode = match mode {
         device::DeviceMode::Phone => "phone".to_string(),
@@ -39,17 +60,24 @@ fn main() {
     let mut drift_history = Vec::with_capacity(cfg.cycles);
     let mut resonance_history = Vec::with_capacity(cfg.cycles);
     let mut last_snapshot: Option<session::Snapshot> = None;
+    let mut alert_stats = if cfg.alarm {
+        Some(AlertStats::default())
+    } else {
+        None
+    };
 
-    for _cycle in 0..cfg.cycles {
+    for (idx, utterance) in utterances.iter().enumerate() {
         let mut vm = metrics::start();
 
         let asr_start = Instant::now();
-        let text = voice_io::transcribe_audio(&cfg, &prof);
+        let text = voice_io::transcribe_audio_like(&cfg, &prof, utterance);
         vm.asr_ms = asr_start.elapsed().as_millis();
 
         let prosody = prosody::analyze(&text, prof.pace_factor, prof.pause_ms);
         let (mut drift, mut res) = adaptive_qa::analyze_prompt(&text);
         (drift, res) = adaptive_qa::apply_prosody_bias(drift, res, &prosody.tone);
+        drift = metrics::clamp01(drift);
+        res = metrics::clamp01(res);
 
         let tts_start = Instant::now();
         voice_io::synthesize_response(
@@ -79,6 +107,8 @@ fn main() {
             asr_ms: vm.asr_ms,
             tts_ms: vm.tts_ms,
             total_ms: vm.total_ms,
+            idx,
+            utterance: text.clone(),
         };
 
         if let Some(sess) = session_handle.as_mut() {
@@ -88,7 +118,14 @@ fn main() {
         }
 
         last_snapshot = Some(snapshot);
+
+        if let Some(stats) = alert_stats.as_mut() {
+            alerts::update(stats, drift, res, cfg.baseline_drift, cfg.baseline_res);
+        }
     }
+
+    println!("[viz] resonance  {}", spark::sparkline(&resonance_history));
+    println!("[viz] drift      {}", spark::sparkline(&drift_history));
 
     if let VizMode::Full = cfg.viz_mode {
         if let Some(ref snap) = last_snapshot {
@@ -105,11 +142,18 @@ fn main() {
         }
     }
 
-    println!("[viz] resonance  {}", spark::sparkline(&resonance_history));
-    println!("[viz] drift      {}", spark::sparkline(&drift_history));
+    let mut strict_exit = false;
+    if let Some(ref stats) = alert_stats {
+        alerts::print_summary(stats, cfg.baseline_drift, cfg.baseline_res);
+        strict_exit = cfg.strict && (stats.drift_breaches > 0 || stats.res_breaches > 0);
+    }
 
     if let Some(sess) = session_handle.take() {
         session::close(sess);
+    }
+
+    if strict_exit {
+        std::process::exit(2);
     }
 }
 
