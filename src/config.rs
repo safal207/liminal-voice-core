@@ -7,6 +7,26 @@ pub struct Config {
     pub channels: u16,
     pub frame_ms: u32,
     pub enable_metrics: bool,
+    pub viz_mode: VizMode,
+    pub cycles: usize,
+    pub enable_logging: bool,
+    pub log_dir: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum VizMode {
+    Compact,
+    Full,
+}
+
+impl VizMode {
+    fn from_str(value: &str) -> Option<Self> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "compact" => Some(VizMode::Compact),
+            "full" => Some(VizMode::Full),
+            _ => None,
+        }
+    }
 }
 
 impl Default for Config {
@@ -17,6 +37,10 @@ impl Default for Config {
             channels: 1,
             frame_ms: 20,
             enable_metrics: true,
+            viz_mode: VizMode::Compact,
+            cycles: 5,
+            enable_logging: false,
+            log_dir: "logs".to_string(),
         }
     }
 }
@@ -37,6 +61,10 @@ fn parse_env_bool(key: &str) -> Option<bool> {
             "0" | "false" | "no" | "off" => Some(false),
             _ => None,
         })
+}
+
+fn parse_env_usize(key: &str) -> Option<usize> {
+    env::var(key).ok()?.parse().ok()
 }
 
 pub fn from_env_or_args() -> Config {
@@ -62,6 +90,28 @@ pub fn from_env_or_args() -> Config {
 
     if let Some(enable) = parse_env_bool("LIMINAL_ENABLE_METRICS") {
         cfg.enable_metrics = enable;
+    }
+
+    if let Ok(viz) = env::var("LIMINAL_VIZ_MODE") {
+        if let Some(mode) = VizMode::from_str(&viz) {
+            cfg.viz_mode = mode;
+        }
+    }
+
+    if let Some(c) = parse_env_usize("LIMINAL_CYCLES") {
+        if c > 0 {
+            cfg.cycles = c;
+        }
+    }
+
+    if let Some(enable_log) = parse_env_bool("LIMINAL_LOG") {
+        cfg.enable_logging = enable_log;
+    }
+
+    if let Ok(dir) = env::var("LIMINAL_LOG_DIR") {
+        if !dir.trim().is_empty() {
+            cfg.log_dir = dir;
+        }
     }
 
     let mut args = env::args().skip(1);
@@ -95,6 +145,32 @@ pub fn from_env_or_args() -> Config {
             }
             "--no-metrics" => {
                 cfg.enable_metrics = false;
+            }
+            "--viz" => {
+                if let Some(val) = args.next() {
+                    if let Some(mode) = VizMode::from_str(&val) {
+                        cfg.viz_mode = mode;
+                    }
+                }
+            }
+            "--cycles" => {
+                if let Some(val) = args.next() {
+                    if let Ok(c) = val.parse::<usize>() {
+                        if c > 0 {
+                            cfg.cycles = c;
+                        }
+                    }
+                }
+            }
+            "--log" => {
+                cfg.enable_logging = true;
+            }
+            "--log-dir" => {
+                if let Some(val) = args.next() {
+                    if !val.trim().is_empty() {
+                        cfg.log_dir = val;
+                    }
+                }
             }
             _ => {}
         }
