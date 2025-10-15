@@ -111,3 +111,23 @@ cargo run -- --script "fast;calm;focus" --strict
 [health] worst: drift_max=0.44, res_min=0.62
 [health] status: ATTENTION ⚠️
 ```
+
+# Iteration 1.5 — Soft-Guard & Self-Rephrasing
+
+## Purpose
+- Introduces a lightweight soft guard that detects high semantic drift and low resonance, issuing gentle warnings and nudging the response toward baseline tone.
+- Keeps all heuristics std-only while allowing configurable guard thresholds and tuning factors.
+
+## CLI Example
+
+```bash
+cargo run -- --script "chaotic speech!;steady calm" --guard --guard-drift 0.35 --guard-res 0.70
+```
+
+## Sample Console Output
+
+```
+[soft-guard] high drift 0.47 → adjusting tone
+→ [voice]: chaotic speech. [recentered]
+[health] status: ATTENTION ⚠️
+```

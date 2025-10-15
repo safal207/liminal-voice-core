@@ -6,6 +6,7 @@ pub mod dialog;
 pub mod metrics;
 pub mod prosody;
 pub mod session;
+pub mod softguard;
 pub mod spark;
 pub mod utils;
 pub mod viz;
