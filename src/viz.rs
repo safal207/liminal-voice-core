@@ -28,6 +28,7 @@ pub fn print_table(
     tts_ms: u128,
     total_ms: u128,
     stab_state: Option<&str>,
+    emote_seed: Option<&str>,
 ) -> Vec<String> {
     let mut lines = Vec::new();
     let border = format!(
@@ -62,6 +63,9 @@ pub fn print_table(
     ));
     if let Some(state) = stab_state {
         lines.push(format_row("Stabilizer State", state));
+    }
+    if let Some(seed) = emote_seed {
+        lines.push(format_row("Emotive Seed", seed));
     }
 
     lines.push(border);

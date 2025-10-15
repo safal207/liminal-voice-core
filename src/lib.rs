@@ -4,6 +4,7 @@ pub mod config;
 pub mod device;
 pub mod device_memory;
 pub mod dialog;
+pub mod emotive;
 pub mod metrics;
 pub mod prosody;
 pub mod session;

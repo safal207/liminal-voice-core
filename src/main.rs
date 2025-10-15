@@ -4,6 +4,7 @@ mod config;
 mod device;
 mod device_memory;
 mod dialog;
+mod emotive;
 mod metrics;
 mod prosody;
 mod session;
@@ -62,6 +63,24 @@ fn main() {
         prof.pace_factor = (prof.pace_factor + memory.avg_pace * 0.1).clamp(0.7, 1.3);
     }
 
+    let mut emote_seed_opt: Option<emotive::EmoteSeed> = None;
+    let mut emote_seed_display: Option<String> = None;
+    if cfg.emote {
+        if let Some(seed) = emotive::load_latest(&cfg.emote_path) {
+            let mut dec = emotive::decay(&seed, current_unix_secs(), cfg.emote_half_life);
+            emotive::apply_boot_bias(&mut dec.ema_res, cfg.emote_warm);
+            println!(
+                "[emote] seed loaded tone={} ema_drift={:.2} ema_res={:.2} wpm={:.0}",
+                dec.tone, dec.ema_drift, dec.ema_res, dec.wpm
+            );
+            emote_seed_display = Some(format!(
+                "tone={} ema_d={:.2} ema_r={:.2} wpm={:.0}",
+                dec.tone, dec.ema_drift, dec.ema_res, dec.wpm
+            ));
+            emote_seed_opt = Some(dec);
+        }
+    }
+
     let mut session_handle = if cfg.enable_logging {
         let mut sess = session::start(cfg.cycles, &cfg.log_dir);
         match session::open_file(&mut sess) {
@@ -107,6 +126,13 @@ fn main() {
     let mut last_articulation: Option<f32> = None;
     let mut last_drift: Option<f32> = None;
     let mut last_res: Option<f32> = None;
+    let mut last_tone: Option<prosody::ToneTag> = None;
+    let mut last_wpm: Option<f32> = None;
+    let mut seed_bias_applied = false;
+
+    if let (Some(stab), Some(seed)) = (stabilizer.as_mut(), emote_seed_opt.as_ref()) {
+        stab.push(seed.ema_drift, seed.ema_res);
+    }
 
     for (idx, utterance) in utterances.iter().enumerate() {
         let mut vm = metrics::start();
@@ -125,6 +151,14 @@ fn main() {
         let mut effective_pace = prof.pace_factor;
         let mut effective_pause_ms = prof.pause_ms as i64;
         let mut stab_state_label: Option<String> = None;
+
+        if !seed_bias_applied {
+            if let Some(seed) = emote_seed_opt.as_ref() {
+                let pace_bias = (seed.wpm / 160.0).clamp(0.8, 1.2);
+                effective_pace = (effective_pace * pace_bias).clamp(0.7, 1.3);
+            }
+            seed_bias_applied = true;
+        }
 
         if let Some(stab) = stabilizer.as_mut() {
             stab.push(drift, res);
@@ -215,11 +249,18 @@ fn main() {
             utterance: text.clone(),
             guard: guard_flag.clone(),
             state: stab_state_label.clone(),
+            emote_state: if idx + 1 == utterances.len() {
+                Some(format!("{:?}", prosody.tone))
+            } else {
+                None
+            },
         };
 
         last_articulation = Some(articulation);
         last_drift = Some(drift);
         last_res = Some(res);
+        last_tone = Some(prosody.tone);
+        last_wpm = Some(prosody.wpm);
 
         if let Some(sess) = session_handle.as_mut() {
             if let Err(err) = session::write(sess, &snapshot) {
@@ -255,7 +296,40 @@ fn main() {
                 snap.tts_ms,
                 snap.total_ms,
                 stab_detail.as_deref(),
+                emote_seed_display.as_deref(),
             );
+        }
+    }
+
+    if cfg.emote {
+        if let (Some(last_wpm), Some(last_tone)) = (last_wpm, last_tone) {
+            let (ema_drift, ema_res) = if let Some(stab) = stabilizer.as_ref() {
+                (stab.ema_drift, stab.ema_res)
+            } else {
+                (
+                    last_drift.unwrap_or(cfg.baseline_drift),
+                    last_res.unwrap_or(cfg.baseline_res),
+                )
+            };
+            let final_tone = format!("{:?}", last_tone);
+            let seed = emotive::EmoteSeed {
+                ema_drift,
+                ema_res,
+                tone: final_tone.clone(),
+                wpm: last_wpm,
+                ts_unix: current_unix_secs(),
+            };
+            match emotive::save_append(&cfg.emote_path, &seed) {
+                Ok(()) => {
+                    println!(
+                        "[emote] saved tone={} ema_drift={:.2} ema_res={:.2} wpm={:.0}",
+                        seed.tone, seed.ema_drift, seed.ema_res, seed.wpm
+                    );
+                }
+                Err(err) => {
+                    eprintln!("[emote] failed to save seed: {}", err);
+                }
+            }
         }
     }
 
@@ -287,6 +361,15 @@ fn main() {
     if strict_exit {
         std::process::exit(2);
     }
+}
+
+fn current_unix_secs() -> i64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
 }
 
 fn now_rfc3339() -> String {

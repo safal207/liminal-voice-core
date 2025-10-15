@@ -27,6 +27,7 @@ pub struct Snapshot {
     pub utterance: String,
     pub guard: Option<String>,
     pub state: Option<String>,
+    pub emote_state: Option<String>,
 }
 
 pub fn start(cycles: usize, log_dir: &str) -> Session {
@@ -61,9 +62,13 @@ pub fn write(sess: &mut Session, snap: &Snapshot) -> io::Result<()> {
         Some(value) => format!("\"{}\"", escape_json(value)),
         None => "null".to_string(),
     };
+    let emote_value = match snap.emote_state.as_ref() {
+        Some(value) => format!("\"{}\"", escape_json(value)),
+        None => "null".to_string(),
+    };
 
     let line = format!(
-        r#"{{"ts":"{}","device":"{}","drift":{:.3},"resonance":{:.3},"wpm":{:.3},"articulation":{:.3},"tone":"{}","asr_ms":{},"tts_ms":{},"total_ms":{},"idx":{},"utt":"{}","guard":{},"state":{}}}"#,
+        r#"{{"ts":"{}","device":"{}","drift":{:.3},"resonance":{:.3},"wpm":{:.3},"articulation":{:.3},"tone":"{}","asr_ms":{},"tts_ms":{},"total_ms":{},"idx":{},"utt":"{}","guard":{},"state":{},"emote_state":{}}}"#,
         escape_json(&snap.ts),
         escape_json(&snap.device),
         snap.drift,
@@ -77,7 +82,8 @@ pub fn write(sess: &mut Session, snap: &Snapshot) -> io::Result<()> {
         snap.idx,
         escape_json(&snap.utterance),
         guard_value,
-        state_value
+        state_value,
+        emote_value
     );
 
     writeln!(file, "{}", line)

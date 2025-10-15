@@ -31,6 +31,10 @@ pub struct Config {
     pub stab_calm: f32,
     pub memory: bool,
     pub memory_path: String,
+    pub emote: bool,
+    pub emote_path: String,
+    pub emote_half_life: u32,
+    pub emote_warm: f32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -81,6 +85,10 @@ impl Default for Config {
             stab_calm: 0.08,
             memory: true,
             memory_path: "device_memory.jsonl".to_string(),
+            emote: true,
+            emote_path: "emote_seed.jsonl".to_string(),
+            emote_half_life: 180,
+            emote_warm: 0.02,
         }
     }
 }
@@ -104,6 +112,10 @@ fn parse_env_bool(key: &str) -> Option<bool> {
 }
 
 fn parse_env_usize(key: &str) -> Option<usize> {
+    env::var(key).ok()?.parse().ok()
+}
+
+fn parse_env_f32(key: &str) -> Option<f32> {
     env::var(key).ok()?.parse().ok()
 }
 
@@ -156,6 +168,24 @@ pub fn from_env_or_args() -> Config {
         if !path.trim().is_empty() {
             cfg.memory_path = path;
         }
+    }
+
+    if let Some(emote) = parse_env_bool("LIMINAL_EMOTE") {
+        cfg.emote = emote;
+    }
+
+    if let Ok(path) = env::var("LIMINAL_EMOTE_PATH") {
+        if !path.trim().is_empty() {
+            cfg.emote_path = path;
+        }
+    }
+
+    if let Some(half_life) = parse_env_u32("LIMINAL_EMOTE_HALF_LIFE") {
+        cfg.emote_half_life = half_life;
+    }
+
+    if let Some(warm) = parse_env_f32("LIMINAL_EMOTE_WARM") {
+        cfg.emote_warm = warm;
     }
 
     if let Ok(dir) = env::var("LIMINAL_LOG_DIR") {
@@ -232,6 +262,33 @@ pub fn from_env_or_args() -> Config {
                 if let Some(val) = args.next() {
                     if !val.trim().is_empty() {
                         cfg.memory_path = val;
+                    }
+                }
+            }
+            "--emote" => {
+                cfg.emote = true;
+            }
+            "--no-emote" => {
+                cfg.emote = false;
+            }
+            "--emote-path" => {
+                if let Some(val) = args.next() {
+                    if !val.trim().is_empty() {
+                        cfg.emote_path = val;
+                    }
+                }
+            }
+            "--emote-half-life" => {
+                if let Some(val) = args.next() {
+                    if let Ok(v) = val.parse::<u32>() {
+                        cfg.emote_half_life = v;
+                    }
+                }
+            }
+            "--emote-warm" => {
+                if let Some(val) = args.next() {
+                    if let Ok(v) = val.parse::<f32>() {
+                        cfg.emote_warm = v;
                     }
                 }
             }
