@@ -25,6 +25,7 @@ pub struct Snapshot {
     pub total_ms: u128,
     pub idx: usize,
     pub utterance: String,
+    pub guard: Option<String>,
 }
 
 pub fn start(cycles: usize, log_dir: &str) -> Session {
@@ -51,8 +52,13 @@ pub fn write(sess: &mut Session, snap: &Snapshot) -> io::Result<()> {
         .as_mut()
         .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "session file not opened"))?;
 
+    let guard_value = match snap.guard.as_ref() {
+        Some(value) => format!("\"{}\"", escape_json(value)),
+        None => "null".to_string(),
+    };
+
     let line = format!(
-        r#"{{"ts":"{}","device":"{}","drift":{:.3},"resonance":{:.3},"wpm":{:.3},"articulation":{:.3},"tone":"{}","asr_ms":{},"tts_ms":{},"total_ms":{},"idx":{},"utt":"{}"}}"#,
+        r#"{{"ts":"{}","device":"{}","drift":{:.3},"resonance":{:.3},"wpm":{:.3},"articulation":{:.3},"tone":"{}","asr_ms":{},"tts_ms":{},"total_ms":{},"idx":{},"utt":"{}","guard":{}}}"#,
         escape_json(&snap.ts),
         escape_json(&snap.device),
         snap.drift,
@@ -64,7 +70,8 @@ pub fn write(sess: &mut Session, snap: &Snapshot) -> io::Result<()> {
         snap.tts_ms,
         snap.total_ms,
         snap.idx,
-        escape_json(&snap.utterance)
+        escape_json(&snap.utterance),
+        guard_value
     );
 
     writeln!(file, "{}", line)

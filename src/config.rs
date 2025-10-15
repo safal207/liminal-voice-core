@@ -17,6 +17,10 @@ pub struct Config {
     pub baseline_res: f32,
     pub alarm: bool,
     pub strict: bool,
+    pub guard: bool,
+    pub guard_drift: f32,
+    pub guard_res: f32,
+    pub guard_factor: f32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -53,6 +57,10 @@ impl Default for Config {
             baseline_res: 0.65,
             alarm: true,
             strict: false,
+            guard: true,
+            guard_drift: 0.40,
+            guard_res: 0.60,
+            guard_factor: 0.2,
         }
     }
 }
@@ -218,6 +226,33 @@ pub fn from_env_or_args() -> Config {
             }
             "--strict" => {
                 cfg.strict = true;
+            }
+            "--guard" => {
+                cfg.guard = true;
+            }
+            "--no-guard" => {
+                cfg.guard = false;
+            }
+            "--guard-drift" => {
+                if let Some(val) = args.next() {
+                    if let Ok(v) = val.parse::<f32>() {
+                        cfg.guard_drift = v;
+                    }
+                }
+            }
+            "--guard-res" => {
+                if let Some(val) = args.next() {
+                    if let Ok(v) = val.parse::<f32>() {
+                        cfg.guard_res = v;
+                    }
+                }
+            }
+            "--guard-factor" => {
+                if let Some(val) = args.next() {
+                    if let Ok(v) = val.parse::<f32>() {
+                        cfg.guard_factor = v;
+                    }
+                }
             }
             _ => {}
         }

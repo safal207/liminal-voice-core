@@ -6,6 +6,7 @@ mod dialog;
 mod metrics;
 mod prosody;
 mod session;
+mod softguard;
 mod spark;
 mod utils;
 mod viz;
@@ -15,6 +16,7 @@ use std::time::Instant;
 
 use alerts::AlertStats;
 use config::VizMode;
+use softguard::{GuardAction, GuardConfig};
 
 fn main() {
     let mut cfg = config::from_env_or_args();
@@ -66,6 +68,12 @@ fn main() {
         None
     };
 
+    let guard_cfg = GuardConfig {
+        drift_limit: cfg.guard_drift,
+        res_limit: cfg.guard_res,
+        rephrase_factor: cfg.guard_factor,
+    };
+
     for (idx, utterance) in utterances.iter().enumerate() {
         let mut vm = metrics::start();
 
@@ -78,6 +86,22 @@ fn main() {
         (drift, res) = adaptive_qa::apply_prosody_bias(drift, res, &prosody.tone);
         drift = metrics::clamp01(drift);
         res = metrics::clamp01(res);
+
+        let mut guard_flag = None;
+        if cfg.guard {
+            match softguard::check_and_rephrase(&text, drift, res, &guard_cfg) {
+                GuardAction::None => {}
+                GuardAction::Warn(msg) => {
+                    println!("{}", msg);
+                    guard_flag = Some("warn".to_string());
+                }
+                GuardAction::Rephrased(new_text) => {
+                    println!("[voice-core] {}", new_text);
+                    voice_io::synthesize_response(&cfg, &prof, &new_text);
+                    guard_flag = Some("rephrased".to_string());
+                }
+            }
+        }
 
         let tts_start = Instant::now();
         voice_io::synthesize_response(
@@ -109,6 +133,7 @@ fn main() {
             total_ms: vm.total_ms,
             idx,
             utterance: text.clone(),
+            guard: guard_flag.clone(),
         };
 
         if let Some(sess) = session_handle.as_mut() {
