@@ -1,11 +1,40 @@
-mod voice_io;
 mod adaptive_qa;
+mod config;
+mod device;
+mod metrics;
+mod voice_io;
+
+use std::time::Instant;
 
 fn main() {
-    let text = voice_io::transcribe_audio();
-    let (drift, res) = adaptive_qa::analyze_prompt(&text);
-    voice_io::synthesize_response(&format!(
-        "Semantic Drift: {:.2}, Resonance: {:.2}",
-        drift, res
-    ));
+    let mut cfg = config::from_env_or_args();
+    let mode = device::detect(&cfg.mode);
+    cfg.mode = match mode {
+        device::DeviceMode::Phone => "phone".to_string(),
+        device::DeviceMode::Headset => "headset".to_string(),
+        device::DeviceMode::Terminal => "terminal".to_string(),
+    };
+    let prof = device::profile(&mode);
+
+    let mut vm = metrics::start();
+
+    let asr_start = Instant::now();
+    let text = voice_io::transcribe_audio(&cfg, &prof);
+    vm.asr_ms = asr_start.elapsed().as_millis();
+
+    let (drift, res) = adaptive_qa::analyze_prompt(&text, prof.pace_factor);
+
+    let tts_start = Instant::now();
+    voice_io::synthesize_response(
+        &cfg,
+        &prof,
+        &format!("Semantic Drift: {:.2}, Resonance: {:.2}", drift, res),
+    );
+    vm.tts_ms = tts_start.elapsed().as_millis();
+
+    metrics::finish(&mut vm);
+
+    if cfg.enable_metrics {
+        metrics::print(&vm);
+    }
 }
