@@ -34,6 +34,7 @@ fn session_writes_jsonl() -> std::io::Result<()> {
         idx: 0,
         utterance: "hello liminal".to_string(),
         guard: None,
+        state: None,
     };
 
     let snapshot2 = session::Snapshot {
@@ -42,6 +43,7 @@ fn session_writes_jsonl() -> std::io::Result<()> {
         idx: 1,
         utterance: "second".into(),
         guard: Some("warn".into()),
+        state: Some("Warming".into()),
         ..snapshot1.clone()
     };
 

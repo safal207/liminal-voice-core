@@ -32,3 +32,11 @@ fn extreme_parameters_clamped() {
     assert!((0.0..=220.0).contains(&fast.wpm));
     assert!((0.0..=1.0).contains(&fast.articulation));
 }
+
+#[test]
+fn articulation_hint_clamped() {
+    let boosted = prosody::apply_articulation_hint(0.9, 0.2);
+    assert!((0.0..=1.0).contains(&boosted));
+    let reduced = prosody::apply_articulation_hint(0.05, -0.2);
+    assert!((0.0..=1.0).contains(&reduced));
+}

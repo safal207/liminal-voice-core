@@ -42,3 +42,7 @@ pub fn analyze(text: &str, pace_factor: f32, pause_ms: u64) -> Prosody {
         tone,
     }
 }
+
+pub fn apply_articulation_hint(articulation: f32, hint: f32) -> f32 {
+    metrics::clamp01(articulation + hint)
+}

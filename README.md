@@ -131,3 +131,32 @@ cargo run -- --script "chaotic speech!;steady calm" --guard --guard-drift 0.35 -
 → [voice]: chaotic speech. [recentered]
 [health] status: ATTENTION ⚠️
 ```
+
+# Iteration 1.6 — Emotional Drift Stabilizer
+
+## Overview
+- Tracks emotional drift and resonance across a rolling window with an EMA-driven state machine.
+- Applies hysteresis with `Normal → Warming → Overheat → Cooldown → Normal` loop to avoid jitter.
+- Emits adaptive pace, pause, and articulation nudges to cool the system during overheat episodes.
+
+### Key States & Thresholds
+```
+Normal → Warming → Overheat → Cooldown → Normal
+   |         |           |             |
+ drift<0.32 drift≥0.32  drift≥0.42 &  hold for cool_steps
+                        res≤0.58
+```
+
+### Usage Example
+
+```bash
+cargo run -- --script "fast;faster;calm;steady" --viz full --stabilizer --stab-hot 0.40
+```
+
+### Sample Output
+
+```
+[stabilizer] state=Overheat ema_drift=0.41 ema_res=0.57
+[stab] Overheat d=0.41 r=0.57
+| Stabilizer State     | Overheat (EMA d=0.41 r=0.57) |
+```

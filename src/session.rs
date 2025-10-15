@@ -26,6 +26,7 @@ pub struct Snapshot {
     pub idx: usize,
     pub utterance: String,
     pub guard: Option<String>,
+    pub state: Option<String>,
 }
 
 pub fn start(cycles: usize, log_dir: &str) -> Session {
@@ -56,9 +57,13 @@ pub fn write(sess: &mut Session, snap: &Snapshot) -> io::Result<()> {
         Some(value) => format!("\"{}\"", escape_json(value)),
         None => "null".to_string(),
     };
+    let state_value = match snap.state.as_ref() {
+        Some(value) => format!("\"{}\"", escape_json(value)),
+        None => "null".to_string(),
+    };
 
     let line = format!(
-        r#"{{"ts":"{}","device":"{}","drift":{:.3},"resonance":{:.3},"wpm":{:.3},"articulation":{:.3},"tone":"{}","asr_ms":{},"tts_ms":{},"total_ms":{},"idx":{},"utt":"{}","guard":{}}}"#,
+        r#"{{"ts":"{}","device":"{}","drift":{:.3},"resonance":{:.3},"wpm":{:.3},"articulation":{:.3},"tone":"{}","asr_ms":{},"tts_ms":{},"total_ms":{},"idx":{},"utt":"{}","guard":{},"state":{}}}"#,
         escape_json(&snap.ts),
         escape_json(&snap.device),
         snap.drift,
@@ -71,7 +76,8 @@ pub fn write(sess: &mut Session, snap: &Snapshot) -> io::Result<()> {
         snap.total_ms,
         snap.idx,
         escape_json(&snap.utterance),
-        guard_value
+        guard_value,
+        state_value
     );
 
     writeln!(file, "{}", line)
