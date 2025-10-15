@@ -11,7 +11,7 @@ pub fn record_audio() -> &'static str {
 
 pub fn transcribe_audio(cfg: &Config, prof: &DeviceProfile) -> String {
     println!(
-        "[cfg] mode={} sr={} ch={} frame={}ms",
+        "[voice] cfg mode={} sr={} ch={} frame={}ms",
         cfg.mode, cfg.sample_rate, cfg.channels, cfg.frame_ms
     );
     println!("[voice] ASR capturing...");
@@ -28,7 +28,7 @@ pub fn synthesize_response(cfg: &Config, prof: &DeviceProfile, text: &str) {
     println!("[voice] TTS rendering...");
     thread::sleep(Duration::from_millis(latency_ms));
     println!("[voice] TTS done (latency={}ms)", latency_ms);
-    println!("→ [voice]: {}", text);
+    println!("[voice] response: {}", text);
     println!(
         "[voice] audio sr={} ch={} gain={:.1}dB",
         cfg.sample_rate, cfg.channels, prof.gain_db
