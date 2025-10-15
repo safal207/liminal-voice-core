@@ -1,14 +1,10 @@
-use rand::Rng;
-
 use crate::metrics;
 use crate::prosody;
+use crate::utils;
 
 pub fn analyze_prompt(input: &str) -> (f32, f32) {
-    let _ = input;
-    let mut rng = rand::thread_rng();
-    let drift: f32 = metrics::clamp01(rng.gen_range(0.0..1.0));
-    let res: f32 = metrics::clamp01(rng.gen_range(0.0..1.0));
-    (drift, res)
+    let (drift, res) = utils::hash01(input);
+    (metrics::clamp01(drift), metrics::clamp01(res))
 }
 
 pub fn apply_prosody_bias(mut drift: f32, mut res: f32, tone: &prosody::ToneTag) -> (f32, f32) {

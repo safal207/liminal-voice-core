@@ -3,5 +3,8 @@ pub mod config;
 pub mod device;
 pub mod metrics;
 pub mod prosody;
+pub mod session;
+pub mod spark;
+pub mod utils;
 pub mod viz;
 pub mod voice_io;

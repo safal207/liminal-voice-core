@@ -66,3 +66,27 @@ cargo run -- --mode terminal
 ```
 
 The table summarizes conversational metrics alongside the simulated latency breakdown for quick inspection.
+
+# Iteration 1.3 — Sessions & Sparkline
+
+## New CLI Flags
+- `--viz compact|full` (default `compact`)
+- `--cycles <int>` (default `5`)
+- `--log` (enable JSONL session logging)
+- `--log-dir <path>` (default `logs`)
+
+## Usage Examples
+
+```bash
+cargo run -- --cycles 5 --viz compact
+cargo run -- --viz full --log --log-dir logs
+```
+
+## Sample Visualization
+
+```
+[viz] resonance  ▁▃▅▆█
+[viz] drift      ▁▂▂▃▄
+```
+
+When logging is enabled, each run writes snapshots to `logs/session-<id>.jsonl` with one JSON object per line capturing timing, tone, and adaptive QA telemetry.
