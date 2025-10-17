@@ -21,6 +21,10 @@ pub struct Config {
     pub guard_drift: f32,
     pub guard_res: f32,
     pub guard_factor: f32,
+    pub sync: bool,
+    pub sync_lr_fast: f32,
+    pub sync_lr_slow: f32,
+    pub sync_step: f32,
     pub stabilizer: bool,
     pub stab_win: usize,
     pub stab_alpha: f32,
@@ -31,6 +35,8 @@ pub struct Config {
     pub stab_calm: f32,
     pub memory: bool,
     pub memory_path: String,
+    pub astro: bool,
+    pub astro_path: String,
     pub emote: bool,
     pub emote_path: String,
     pub emote_half_life: u32,
@@ -75,6 +81,10 @@ impl Default for Config {
             guard_drift: 0.40,
             guard_res: 0.60,
             guard_factor: 0.2,
+            sync: true,
+            sync_lr_fast: 0.15,
+            sync_lr_slow: 0.05,
+            sync_step: 0.02,
             stabilizer: true,
             stab_win: 5,
             stab_alpha: 0.4,
@@ -85,6 +95,8 @@ impl Default for Config {
             stab_calm: 0.08,
             memory: true,
             memory_path: "device_memory.jsonl".to_string(),
+            astro: true,
+            astro_path: "astro_traces.jsonl".to_string(),
             emote: true,
             emote_path: "emote_seed.jsonl".to_string(),
             emote_half_life: 180,
@@ -167,6 +179,16 @@ pub fn from_env_or_args() -> Config {
     if let Ok(path) = env::var("LIMINAL_MEMORY_PATH") {
         if !path.trim().is_empty() {
             cfg.memory_path = path;
+        }
+    }
+
+    if let Some(astro) = parse_env_bool("LIMINAL_ASTRO") {
+        cfg.astro = astro;
+    }
+
+    if let Ok(path) = env::var("LIMINAL_ASTRO_PATH") {
+        if !path.trim().is_empty() {
+            cfg.astro_path = path;
         }
     }
 
@@ -265,6 +287,19 @@ pub fn from_env_or_args() -> Config {
                     }
                 }
             }
+            "--astro" => {
+                cfg.astro = true;
+            }
+            "--no-astro" => {
+                cfg.astro = false;
+            }
+            "--astro-path" => {
+                if let Some(val) = args.next() {
+                    if !val.trim().is_empty() {
+                        cfg.astro_path = val;
+                    }
+                }
+            }
             "--emote" => {
                 cfg.emote = true;
             }
@@ -351,6 +386,33 @@ pub fn from_env_or_args() -> Config {
                 if let Some(val) = args.next() {
                     if let Ok(v) = val.parse::<f32>() {
                         cfg.guard_factor = v;
+                    }
+                }
+            }
+            "--sync" => {
+                cfg.sync = true;
+            }
+            "--no-sync" => {
+                cfg.sync = false;
+            }
+            "--sync-lr-fast" => {
+                if let Some(val) = args.next() {
+                    if let Ok(v) = val.parse::<f32>() {
+                        cfg.sync_lr_fast = v;
+                    }
+                }
+            }
+            "--sync-lr-slow" => {
+                if let Some(val) = args.next() {
+                    if let Ok(v) = val.parse::<f32>() {
+                        cfg.sync_lr_slow = v;
+                    }
+                }
+            }
+            "--sync-step" => {
+                if let Some(val) = args.next() {
+                    if let Ok(v) = val.parse::<f32>() {
+                        cfg.sync_step = v;
                     }
                 }
             }

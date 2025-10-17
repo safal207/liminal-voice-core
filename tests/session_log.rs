@@ -36,6 +36,7 @@ fn session_writes_jsonl() -> std::io::Result<()> {
         guard: None,
         state: None,
         emote_state: None,
+        sync: None,
     };
 
     let snapshot2 = session::Snapshot {
@@ -46,6 +47,12 @@ fn session_writes_jsonl() -> std::io::Result<()> {
         guard: Some("warn".into()),
         state: Some("Warming".into()),
         emote_state: Some("Neutral".into()),
+        sync: Some(session::SyncDelta {
+            pace_delta: -0.01,
+            pause_delta_ms: 5,
+            res_boost: 0.02,
+            drift_relief: 0.0,
+        }),
         ..snapshot1.clone()
     };
 

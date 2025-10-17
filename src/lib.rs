@@ -1,5 +1,6 @@
 pub mod adaptive_qa;
 pub mod alerts;
+pub mod astro;
 pub mod config;
 pub mod device;
 pub mod device_memory;
@@ -11,6 +12,7 @@ pub mod session;
 pub mod softguard;
 pub mod spark;
 pub mod stabilizer;
+pub mod sync;
 pub mod utils;
 pub mod viz;
 pub mod voice_io;
