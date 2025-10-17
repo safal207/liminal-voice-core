@@ -29,6 +29,9 @@ pub struct Config {
     pub stab_low_res: f32,
     pub stab_cool: usize,
     pub stab_calm: f32,
+    pub astro: bool,
+    pub astro_path: String,
+    pub astro_cache: usize,
     pub memory: bool,
     pub memory_path: String,
     pub emote: bool,
@@ -83,6 +86,9 @@ impl Default for Config {
             stab_low_res: 0.58,
             stab_cool: 3,
             stab_calm: 0.08,
+            astro: true,
+            astro_path: "astro_traces.jsonl".to_string(),
+            astro_cache: 512,
             memory: true,
             memory_path: "device_memory.jsonl".to_string(),
             emote: true,
@@ -162,6 +168,22 @@ pub fn from_env_or_args() -> Config {
 
     if let Some(memory) = parse_env_bool("LIMINAL_MEMORY") {
         cfg.memory = memory;
+    }
+
+    if let Some(astro) = parse_env_bool("LIMINAL_ASTRO") {
+        cfg.astro = astro;
+    }
+
+    if let Ok(path) = env::var("LIMINAL_ASTRO_PATH") {
+        if !path.trim().is_empty() {
+            cfg.astro_path = path;
+        }
+    }
+
+    if let Some(cache) = parse_env_usize("LIMINAL_ASTRO_CACHE") {
+        if cache > 0 {
+            cfg.astro_cache = cache;
+        }
     }
 
     if let Ok(path) = env::var("LIMINAL_MEMORY_PATH") {
@@ -257,6 +279,28 @@ pub fn from_env_or_args() -> Config {
             }
             "--no-memory" => {
                 cfg.memory = false;
+            }
+            "--astro" => {
+                cfg.astro = true;
+            }
+            "--no-astro" => {
+                cfg.astro = false;
+            }
+            "--astro-path" => {
+                if let Some(val) = args.next() {
+                    if !val.trim().is_empty() {
+                        cfg.astro_path = val;
+                    }
+                }
+            }
+            "--astro-cache" => {
+                if let Some(val) = args.next() {
+                    if let Ok(v) = val.parse::<usize>() {
+                        if v > 0 {
+                            cfg.astro_cache = v;
+                        }
+                    }
+                }
             }
             "--memory-path" => {
                 if let Some(val) = args.next() {

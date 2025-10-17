@@ -1,5 +1,6 @@
 mod adaptive_qa;
 mod alerts;
+mod astro;
 mod config;
 mod device;
 mod device_memory;
@@ -18,6 +19,7 @@ mod voice_io;
 use std::time::Instant;
 
 use alerts::AlertStats;
+use astro::AstroSessionStats;
 use config::VizMode;
 use softguard::{GuardAction, GuardConfig};
 
@@ -48,6 +50,12 @@ fn main() {
         device::DeviceMode::Terminal => "terminal".to_string(),
     };
     let mut prof = device::profile(&mode);
+    let mut astro_store = if cfg.astro {
+        Some(astro::AstroStore::load(&cfg.astro_path, cfg.astro_cache))
+    } else {
+        None
+    };
+    let mut astro_session_stats = AstroSessionStats::default();
 
     let device_key = format!("{:?}", mode);
     let mut mem_store = if cfg.memory {
@@ -146,6 +154,41 @@ fn main() {
         (drift, res) = adaptive_qa::apply_prosody_bias(drift, res, &prosody.tone);
         drift = metrics::clamp01(drift);
         res = metrics::clamp01(res);
+        let measured_drift = drift;
+        let measured_res = res;
+
+        let mut astro_advice: Option<astro::AstroAdvice> = None;
+        let mut astro_key: Option<String> = None;
+        let mut astro_recall_ts: Option<i64> = None;
+        if cfg.astro {
+            astro_key = Some(astro::topic_key(&text, prosody.tone));
+        }
+        if let (Some(store), Some(ref key)) = (astro_store.as_mut(), astro_key.as_ref()) {
+            let now_ts = current_unix_secs();
+            if let Some(mut advice) = store.recall(key, now_ts) {
+                if let Some(seed) = emote_seed_opt.as_ref() {
+                    if idx < 2
+                        && seed
+                            .tone
+                            .eq_ignore_ascii_case(&format!("{:?}", prosody.tone))
+                    {
+                        let extra = 0.02 + (advice.res_bias.abs().min(0.06) * 0.5);
+                        advice.res_bias += extra;
+                        advice.drift_bias -= extra * 0.6;
+                    }
+                }
+                drift = metrics::clamp01(drift + advice.drift_bias);
+                res = metrics::clamp01(res + advice.res_bias);
+                astro_session_stats.hits = astro_session_stats.hits.saturating_add(1);
+                astro_session_stats.boost_res += advice.res_bias;
+                astro_session_stats.bias_drift += advice.drift_bias;
+                astro_recall_ts = Some(now_ts);
+                astro_advice = Some(advice);
+            }
+        }
+
+        let emo_flag = matches!(prosody.tone, prosody::ToneTag::Energetic)
+            && (measured_drift > cfg.baseline_drift || measured_res > 0.75);
 
         let mut articulation = prosody.articulation;
         let mut effective_pace = prof.pace_factor;
@@ -175,6 +218,17 @@ fn main() {
                 viz::print_compact_stabilizer(stab.state, stab.ema_drift, stab.ema_res);
             }
             stab_state_label = Some(format!("{:?}", stab.state));
+        }
+
+        if let Some(mut advice) = astro_advice {
+            if let Some(stab) = stabilizer.as_ref() {
+                if matches!(stab.state, stabilizer::EmoState::Overheat) {
+                    advice.pace_delta -= 0.02;
+                    advice.pause_delta_ms += 15;
+                }
+            }
+            effective_pace = (effective_pace + advice.pace_delta).clamp(0.7, 1.3);
+            effective_pause_ms = (effective_pause_ms + advice.pause_delta_ms).clamp(20, 250);
         }
 
         let effective_pause_ms = effective_pause_ms.clamp(20, 250);
@@ -268,6 +322,11 @@ fn main() {
             }
         }
 
+        if let (Some(store), Some(ref key)) = (astro_store.as_mut(), astro_key.as_ref()) {
+            let ts = astro_recall_ts.unwrap_or_else(|| current_unix_secs());
+            store.consolidate(key, measured_drift, measured_res, emo_flag, ts);
+        }
+
         last_snapshot = Some(snapshot);
 
         if let Some(stats) = alert_stats.as_mut() {
@@ -277,6 +336,13 @@ fn main() {
 
     println!("[viz] resonance  {}", spark::sparkline(&resonance_history));
     println!("[viz] drift      {}", spark::sparkline(&drift_history));
+
+    if cfg.astro {
+        println!(
+            "[astro] hits={} boost_res={:.3} bias_drift={:.3}",
+            astro_session_stats.hits, astro_session_stats.boost_res, astro_session_stats.bias_drift
+        );
+    }
 
     if let VizMode::Full = cfg.viz_mode {
         if let Some(ref snap) = last_snapshot {
