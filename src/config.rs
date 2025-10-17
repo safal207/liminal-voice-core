@@ -21,6 +21,10 @@ pub struct Config {
     pub guard_drift: f32,
     pub guard_res: f32,
     pub guard_factor: f32,
+    pub sync: bool,
+    pub sync_lr_fast: f32,
+    pub sync_lr_slow: f32,
+    pub sync_step: f32,
     pub stabilizer: bool,
     pub stab_win: usize,
     pub stab_alpha: f32,
@@ -75,6 +79,10 @@ impl Default for Config {
             guard_drift: 0.40,
             guard_res: 0.60,
             guard_factor: 0.2,
+            sync: true,
+            sync_lr_fast: 0.15,
+            sync_lr_slow: 0.05,
+            sync_step: 0.02,
             stabilizer: true,
             stab_win: 5,
             stab_alpha: 0.4,
@@ -351,6 +359,33 @@ pub fn from_env_or_args() -> Config {
                 if let Some(val) = args.next() {
                     if let Ok(v) = val.parse::<f32>() {
                         cfg.guard_factor = v;
+                    }
+                }
+            }
+            "--sync" => {
+                cfg.sync = true;
+            }
+            "--no-sync" => {
+                cfg.sync = false;
+            }
+            "--sync-lr-fast" => {
+                if let Some(val) = args.next() {
+                    if let Ok(v) = val.parse::<f32>() {
+                        cfg.sync_lr_fast = v;
+                    }
+                }
+            }
+            "--sync-lr-slow" => {
+                if let Some(val) = args.next() {
+                    if let Ok(v) = val.parse::<f32>() {
+                        cfg.sync_lr_slow = v;
+                    }
+                }
+            }
+            "--sync-step" => {
+                if let Some(val) = args.next() {
+                    if let Ok(v) = val.parse::<f32>() {
+                        cfg.sync_step = v;
                     }
                 }
             }
