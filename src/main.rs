@@ -212,10 +212,10 @@ fn main() {
         if let Some(stab) = stabilizer.as_mut() {
             stab.push(drift, res);
             let advice = stab.advice();
-            effective_pace = (prof.pace_factor + advice.pace_delta).clamp(0.7, 1.3);
-            effective_pause_ms = (prof.pause_ms as i64 + advice.pause_delta_ms).clamp(20, 250);
+            effective_pace = (effective_pace + advice.pace_delta).clamp(0.7, 1.3);
+            effective_pause_ms = (effective_pause_ms + advice.pause_delta_ms).clamp(20, 250);
             articulation =
-                prosody::apply_articulation_hint(prosody.articulation, advice.articulation_hint);
+                prosody::apply_articulation_hint(articulation, advice.articulation_hint);
             println!(
                 "{}",
                 stabilizer::format_status(stab.state, stab.ema_drift, stab.ema_res)
