@@ -10,22 +10,25 @@ fn normalize_theme_uses_script_or_first_line() {
 }
 
 #[test]
-fn consolidate_accumulates_biases() {
-    let tmp = std::env::temp_dir().join("astro_integration_test.txt");
+fn fold_sync_delta_accumulates_biases() {
+    let tmp = std::env::temp_dir().join("astro_integration_test.jsonl");
     if tmp.exists() {
         let _ = std::fs::remove_file(&tmp);
     }
 
     let path = tmp.to_string_lossy().to_string();
-    let mut store = AstroStore::load(&path);
-    store.consolidate("focus", -0.02, 0.015);
-    store.consolidate("focus", -0.03, 0.02);
-    store.save();
+    {
+        let mut store = AstroStore::load(&path, 8);
+        store.fold_sync_delta("focus", -0.02, 0.015, 10);
+        store.fold_sync_delta("focus", -0.03, 0.02, 20);
+    }
 
-    let reloaded = AstroStore::load(&path);
-    let advice = reloaded.suggest("focus").expect("advice exists");
-    assert!(advice.drift_bias <= 0.0);
-    assert!(advice.res_bias >= 0.0);
-    assert!(advice.visits >= 1);
-    assert!(advice.stability >= 0.0 && advice.stability <= 1.0);
+    let reloaded = AstroStore::load(&path, 8);
+    let bias = reloaded.suggest_sync("focus").expect("bias exists");
+    assert!(bias.drift_bias <= 0.0);
+    assert!(bias.res_bias >= 0.0);
+    assert!(bias.visits >= 1);
+    assert!(bias.stability >= 0.0 && bias.stability <= 1.0);
+
+    let _ = std::fs::remove_file(&tmp);
 }

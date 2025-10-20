@@ -20,7 +20,7 @@ mod voice_io;
 use std::time::Instant;
 
 use alerts::AlertStats;
-use astro::AstroStore;
+use astro::{AstroSessionStats, AstroStore};
 use config::VizMode;
 use session::SyncDelta;
 use softguard::{GuardAction, GuardConfig};
@@ -47,24 +47,6 @@ fn main() {
     }
 
     let astro_theme = astro::normalize_theme(cfg.script.as_deref(), &utterances);
-    let mut astro_store = if cfg.astro {
-        Some(AstroStore::load(&cfg.astro_path))
-    } else {
-        None
-    };
-
-    let mut astro_seed_res = 0.0;
-    let mut astro_seed_drift = 0.0;
-    if let Some(store) = astro_store.as_ref() {
-        if let Some(advice) = store.suggest(&astro_theme) {
-            println!(
-                "[astro] warm theme={} drift_bias={:.3} res_bias={:.3} stability={:.2}",
-                astro_theme, advice.drift_bias, advice.res_bias, advice.stability
-            );
-            astro_seed_res = advice.res_bias.clamp(-0.05, 0.05);
-            astro_seed_drift = advice.drift_bias.clamp(-0.05, 0.05);
-        }
-    }
 
     let mode = device::detect(&cfg.mode);
     cfg.mode = match mode {
@@ -73,20 +55,28 @@ fn main() {
         device::DeviceMode::Terminal => "terminal".to_string(),
     };
     let mut prof = device::profile(&mode);
-    let sync_baselines = SyncBaselines {
-        drift: cfg.baseline_drift,
-        res: cfg.baseline_res,
+    let mut astro_store = if cfg.astro {
+        Some(AstroStore::load(&cfg.astro_path, cfg.astro_cache))
+    } else {
+        None
     };
-    let sync_cfg = SyncCfg {
-        lr_fast: cfg.sync_lr_fast,
-        lr_slow: cfg.sync_lr_slow,
-        clamp_step: cfg.sync_step,
-    };
-    let mut sync_state = SyncState::default();
-    let mut device_seed_pace = 0.0;
-    let mut device_seed_pause: i64 = 0;
-    let mut emotive_seed_res = 0.0;
-    let mut emotive_seed_drift = 0.0;
+    let mut astro_session_stats = AstroSessionStats::default();
+
+    let mut astro_seed_res = 0.0;
+    let mut astro_seed_drift = 0.0;
+    if cfg.sync {
+        if let Some(store) = astro_store.as_ref() {
+            if let Some(bias) = store.suggest_sync(&astro_theme) {
+                println!(
+                    "[astro] warm theme={} drift_bias={:.3} res_bias={:.3} stability={:.2}",
+                    astro_theme, bias.drift_bias, bias.res_bias, bias.stability
+                );
+                astro_seed_res = bias.res_bias.clamp(-0.05, 0.05);
+                astro_seed_drift = bias.drift_bias.clamp(-0.05, 0.05);
+            }
+        }
+    }
+
     let device_key = format!("{:?}", mode);
     let mut mem_store = if cfg.memory {
         device_memory::DeviceMemoryStore::load(&cfg.memory_path)
@@ -95,6 +85,8 @@ fn main() {
     };
     let base_pace = prof.pace_factor;
     let base_pause = prof.pause_ms as f32;
+    let mut device_seed_pace = 0.0;
+    let mut device_seed_pause: i64 = 0;
     if let Some(memory) = device_memory::suggest_profile(&mem_store, &device_key) {
         println!(
             "[memory] loaded avg_pace={:.2} pause={:.1} art={:.2}",
@@ -108,6 +100,8 @@ fn main() {
 
     let mut emote_seed_opt: Option<emotive::EmoteSeed> = None;
     let mut emote_seed_display: Option<String> = None;
+    let mut emotive_seed_res = 0.0;
+    let mut emotive_seed_drift = 0.0;
     if cfg.emote {
         if let Some(seed) = emotive::load_latest(&cfg.emote_path) {
             let mut dec = emotive::decay(&seed, current_unix_secs(), cfg.emote_half_life);
@@ -120,24 +114,10 @@ fn main() {
                 "tone={} ema_d={:.2} ema_r={:.2} wpm={:.0}",
                 dec.tone, dec.ema_drift, dec.ema_res, dec.wpm
             ));
+            emotive_seed_res = (dec.ema_res - cfg.baseline_res).max(0.0).min(0.05);
+            emotive_seed_drift = (cfg.baseline_drift - dec.ema_drift).max(0.0).min(0.05);
             emote_seed_opt = Some(dec);
-            if let Some(seed) = emote_seed_opt.as_ref() {
-                emotive_seed_res = (seed.ema_res - cfg.baseline_res).max(0.0).min(0.05);
-                emotive_seed_drift = (cfg.baseline_drift - seed.ema_drift).max(0.0).min(0.05);
-            }
         }
-    }
-
-    if cfg.sync {
-        let seeds = sync::merge_seeds(
-            emotive_seed_res,
-            emotive_seed_drift,
-            device_seed_pace,
-            device_seed_pause,
-            astro_seed_res,
-            astro_seed_drift,
-        );
-        sync_state.warm_start(seeds, sync_baselines);
     }
 
     let mut session_handle = if cfg.enable_logging {
@@ -152,6 +132,28 @@ fn main() {
     } else {
         None
     };
+
+    let sync_baselines = SyncBaselines {
+        drift: cfg.baseline_drift,
+        res: cfg.baseline_res,
+    };
+    let sync_cfg = SyncCfg {
+        lr_fast: cfg.sync_lr_fast,
+        lr_slow: cfg.sync_lr_slow,
+        clamp_step: cfg.sync_step,
+    };
+    let mut sync_state = SyncState::default();
+    if cfg.sync {
+        let seeds = sync::merge_seeds(
+            emotive_seed_res,
+            emotive_seed_drift,
+            device_seed_pace,
+            device_seed_pause,
+            astro_seed_res,
+            astro_seed_drift,
+        );
+        sync_state.warm_start(seeds, sync_baselines);
+    }
 
     let mut drift_history = Vec::with_capacity(cfg.cycles);
     let mut resonance_history = Vec::with_capacity(cfg.cycles);
@@ -206,11 +208,47 @@ fn main() {
         (drift, res) = adaptive_qa::apply_prosody_bias(drift, res, &prosody.tone);
         drift = metrics::clamp01(drift);
         res = metrics::clamp01(res);
+        let measured_drift = drift;
+        let measured_res = res;
+
+        let mut astro_advice: Option<astro::AstroAdvice> = None;
+        let mut astro_key: Option<String> = None;
+        let mut astro_recall_ts: Option<i64> = None;
+        if cfg.astro {
+            astro_key = Some(astro::topic_key(&text, prosody.tone));
+        }
+        if let (Some(store), Some(ref key)) = (astro_store.as_mut(), astro_key.as_ref()) {
+            let now_ts = current_unix_secs();
+            if let Some(mut advice) = store.recall(key, now_ts) {
+                if let Some(seed) = emote_seed_opt.as_ref() {
+                    if idx < 2
+                        && seed
+                            .tone
+                            .eq_ignore_ascii_case(&format!("{:?}", prosody.tone))
+                    {
+                        let extra = 0.02 + (advice.res_bias.abs().min(0.06) * 0.5);
+                        advice.res_bias += extra;
+                        advice.drift_bias -= extra * 0.6;
+                    }
+                }
+                drift = metrics::clamp01(drift + advice.drift_bias);
+                res = metrics::clamp01(res + advice.res_bias);
+                astro_session_stats.hits = astro_session_stats.hits.saturating_add(1);
+                astro_session_stats.boost_res += advice.res_bias;
+                astro_session_stats.bias_drift += advice.drift_bias;
+                astro_recall_ts = Some(now_ts);
+                astro_advice = Some(advice);
+            }
+        }
+
+        let emo_flag = matches!(prosody.tone, prosody::ToneTag::Energetic)
+            && (measured_drift > cfg.baseline_drift || measured_res > 0.75);
 
         let mut articulation = prosody.articulation;
         let mut effective_pace = prof.pace_factor;
         let mut effective_pause_ms = prof.pause_ms as i64;
         let mut stab_state_label: Option<String> = None;
+        let mut current_state = stabilizer::EmoState::Normal;
 
         if !seed_bias_applied {
             if let Some(seed) = emote_seed_opt.as_ref() {
@@ -227,7 +265,6 @@ fn main() {
             seed_bias_applied = true;
         }
 
-        let mut current_state = stabilizer::EmoState::Normal;
         if let Some(stab) = stabilizer.as_mut() {
             stab.push(drift, res);
             let advice = stab.advice();
@@ -244,6 +281,17 @@ fn main() {
             }
             stab_state_label = Some(format!("{:?}", stab.state));
             current_state = stab.state;
+        }
+
+        if let Some(mut advice) = astro_advice {
+            if let Some(stab) = stabilizer.as_ref() {
+                if matches!(stab.state, stabilizer::EmoState::Overheat) {
+                    advice.pace_delta -= 0.02;
+                    advice.pause_delta_ms += 15;
+                }
+            }
+            effective_pace = (effective_pace + advice.pace_delta).clamp(0.7, 1.3);
+            effective_pause_ms = (effective_pause_ms + advice.pause_delta_ms).clamp(20, 250);
         }
 
         let mut sync_delta: Option<SyncDelta> = None;
@@ -362,6 +410,11 @@ fn main() {
             }
         }
 
+        if let (Some(store), Some(ref key)) = (astro_store.as_mut(), astro_key.as_ref()) {
+            let ts = astro_recall_ts.unwrap_or_else(|| current_unix_secs());
+            store.consolidate(key, measured_drift, measured_res, emo_flag, ts);
+        }
+
         last_snapshot = Some(snapshot);
 
         if let Some(stats) = alert_stats.as_mut() {
@@ -382,14 +435,21 @@ fn main() {
         let (astro_drift_bias, astro_res_bias) = sync_state.to_slow_increments(&sync_cfg);
         if (astro_drift_bias != 0.0 || astro_res_bias != 0.0) && cfg.astro {
             if let Some(store) = astro_store.as_mut() {
-                store.consolidate(&astro_theme, astro_drift_bias, astro_res_bias);
-                store.save();
+                let now_ts = current_unix_secs();
+                store.fold_sync_delta(&astro_theme, astro_drift_bias, astro_res_bias, now_ts);
                 println!(
                     "[astro] consolidate theme={} drift_bias={:.3} res_bias={:.3}",
                     astro_theme, astro_drift_bias, astro_res_bias
                 );
             }
         }
+    }
+
+    if cfg.astro {
+        println!(
+            "[astro] hits={} boost_res={:.3} bias_drift={:.3}",
+            astro_session_stats.hits, astro_session_stats.boost_res, astro_session_stats.bias_drift
+        );
     }
 
     if let VizMode::Full = cfg.viz_mode {
