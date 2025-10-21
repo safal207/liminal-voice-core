@@ -20,7 +20,7 @@ mod voice_io;
 use std::time::Instant;
 
 use alerts::AlertStats;
-use astro::{AstroSessionStats, AstroStore};
+use astro::AstroSessionStats;
 use config::VizMode;
 use session::SyncDelta;
 use softguard::{GuardAction, GuardConfig};
@@ -56,26 +56,11 @@ fn main() {
     };
     let mut prof = device::profile(&mode);
     let mut astro_store = if cfg.astro {
-        Some(AstroStore::load(&cfg.astro_path, cfg.astro_cache))
+        Some(astro::AstroStore::load(&cfg.astro_path, cfg.astro_cache))
     } else {
         None
     };
     let mut astro_session_stats = AstroSessionStats::default();
-
-    let mut astro_seed_res = 0.0;
-    let mut astro_seed_drift = 0.0;
-    if cfg.sync {
-        if let Some(store) = astro_store.as_ref() {
-            if let Some(bias) = store.suggest_sync(&astro_theme) {
-                println!(
-                    "[astro] warm theme={} drift_bias={:.3} res_bias={:.3} stability={:.2}",
-                    astro_theme, bias.drift_bias, bias.res_bias, bias.stability
-                );
-                astro_seed_res = bias.res_bias.clamp(-0.05, 0.05);
-                astro_seed_drift = bias.drift_bias.clamp(-0.05, 0.05);
-            }
-        }
-    }
 
     let device_key = format!("{:?}", mode);
     let mut mem_store = if cfg.memory {
@@ -310,7 +295,18 @@ fn main() {
             });
         }
 
-        effective_pause_ms = effective_pause_ms.clamp(20, 250);
+        if let Some(mut advice) = astro_advice {
+            if let Some(stab) = stabilizer.as_ref() {
+                if matches!(stab.state, stabilizer::EmoState::Overheat) {
+                    advice.pace_delta -= 0.02;
+                    advice.pause_delta_ms += 15;
+                }
+            }
+            effective_pace = (effective_pace + advice.pace_delta).clamp(0.7, 1.3);
+            effective_pause_ms = (effective_pause_ms + advice.pause_delta_ms).clamp(20, 250);
+        }
+
+        let effective_pause_ms = effective_pause_ms.clamp(20, 250);
         let effective_pause_u64 = effective_pause_ms as u64;
         effective_pace = effective_pace.clamp(0.7, 1.3);
 
@@ -424,26 +420,6 @@ fn main() {
 
     println!("[viz] resonance  {}", spark::sparkline(&resonance_history));
     println!("[viz] drift      {}", spark::sparkline(&drift_history));
-
-    if cfg.sync {
-        if let Some(delta) = last_sync_delta {
-            println!(
-                "[sync] last_step pace_delta={:.3} pause_delta={} res_boost={:.3} drift_relief={:.3}",
-                delta.pace_delta, delta.pause_delta_ms, delta.res_boost, delta.drift_relief
-            );
-        }
-        let (astro_drift_bias, astro_res_bias) = sync_state.to_slow_increments(&sync_cfg);
-        if (astro_drift_bias != 0.0 || astro_res_bias != 0.0) && cfg.astro {
-            if let Some(store) = astro_store.as_mut() {
-                let now_ts = current_unix_secs();
-                store.fold_sync_delta(&astro_theme, astro_drift_bias, astro_res_bias, now_ts);
-                println!(
-                    "[astro] consolidate theme={} drift_bias={:.3} res_bias={:.3}",
-                    astro_theme, astro_drift_bias, astro_res_bias
-                );
-            }
-        }
-    }
 
     if cfg.astro {
         println!(
