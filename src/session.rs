@@ -28,6 +28,15 @@ pub struct Snapshot {
     pub guard: Option<String>,
     pub state: Option<String>,
     pub emote_state: Option<String>,
+    pub sync: Option<SyncDelta>,
+}
+
+#[derive(Clone, Copy)]
+pub struct SyncDelta {
+    pub pace_delta: f32,
+    pub pause_delta_ms: i64,
+    pub res_boost: f32,
+    pub drift_relief: f32,
 }
 
 pub fn start(cycles: usize, log_dir: &str) -> Session {
@@ -67,8 +76,16 @@ pub fn write(sess: &mut Session, snap: &Snapshot) -> io::Result<()> {
         None => "null".to_string(),
     };
 
+    let sync_value = match snap.sync {
+        Some(delta) => format!(
+            "{{\"pace_delta\":{:.4},\"pause_delta\":{},\"res_boost\":{:.4},\"drift_relief\":{:.4}}}",
+            delta.pace_delta, delta.pause_delta_ms, delta.res_boost, delta.drift_relief
+        ),
+        None => "null".to_string(),
+    };
+
     let line = format!(
-        r#"{{"ts":"{}","device":"{}","drift":{:.3},"resonance":{:.3},"wpm":{:.3},"articulation":{:.3},"tone":"{}","asr_ms":{},"tts_ms":{},"total_ms":{},"idx":{},"utt":"{}","guard":{},"state":{},"emote_state":{}}}"#,
+        r#"{{"ts":"{}","device":"{}","drift":{:.3},"resonance":{:.3},"wpm":{:.3},"articulation":{:.3},"tone":"{}","asr_ms":{},"tts_ms":{},"total_ms":{},"idx":{},"utt":"{}","guard":{},"state":{},"emote_state":{},"sync":{}}}"#,
         escape_json(&snap.ts),
         escape_json(&snap.device),
         snap.drift,
@@ -83,7 +100,8 @@ pub fn write(sess: &mut Session, snap: &Snapshot) -> io::Result<()> {
         escape_json(&snap.utterance),
         guard_value,
         state_value,
-        emote_value
+        emote_value,
+        sync_value
     );
 
     writeln!(file, "{}", line)

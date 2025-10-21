@@ -12,6 +12,7 @@ mod session;
 mod softguard;
 mod spark;
 mod stabilizer;
+mod sync;
 mod utils;
 mod viz;
 mod voice_io;
@@ -21,7 +22,9 @@ use std::time::Instant;
 use alerts::AlertStats;
 use astro::AstroSessionStats;
 use config::VizMode;
+use session::SyncDelta;
 use softguard::{GuardAction, GuardConfig};
+use sync::{Baselines as SyncBaselines, SyncCfg, SyncState};
 
 fn main() {
     let mut cfg = config::from_env_or_args();
@@ -43,6 +46,8 @@ fn main() {
         utterances = padded;
     }
 
+    let astro_theme = astro::normalize_theme(cfg.script.as_deref(), &utterances);
+
     let mode = device::detect(&cfg.mode);
     cfg.mode = match mode {
         device::DeviceMode::Phone => "phone".to_string(),
@@ -63,16 +68,25 @@ fn main() {
     } else {
         device_memory::DeviceMemoryStore::default()
     };
+    let base_pace = prof.pace_factor;
+    let base_pause = prof.pause_ms as f32;
+    let mut device_seed_pace = 0.0;
+    let mut device_seed_pause: i64 = 0;
     if let Some(memory) = device_memory::suggest_profile(&mem_store, &device_key) {
         println!(
             "[memory] loaded avg_pace={:.2} pause={:.1} art={:.2}",
             memory.avg_pace, memory.avg_pause, memory.avg_articulation
         );
         prof.pace_factor = (prof.pace_factor + memory.avg_pace * 0.1).clamp(0.7, 1.3);
+        device_seed_pace = (memory.avg_pace - base_pace).clamp(-0.2, 0.2);
+        let pause_bias = (memory.avg_pause - base_pause).round() as i64;
+        device_seed_pause = pause_bias.clamp(-40, 60);
     }
 
     let mut emote_seed_opt: Option<emotive::EmoteSeed> = None;
     let mut emote_seed_display: Option<String> = None;
+    let mut emotive_seed_res = 0.0;
+    let mut emotive_seed_drift = 0.0;
     if cfg.emote {
         if let Some(seed) = emotive::load_latest(&cfg.emote_path) {
             let mut dec = emotive::decay(&seed, current_unix_secs(), cfg.emote_half_life);
@@ -85,6 +99,8 @@ fn main() {
                 "tone={} ema_d={:.2} ema_r={:.2} wpm={:.0}",
                 dec.tone, dec.ema_drift, dec.ema_res, dec.wpm
             ));
+            emotive_seed_res = (dec.ema_res - cfg.baseline_res).max(0.0).min(0.05);
+            emotive_seed_drift = (cfg.baseline_drift - dec.ema_drift).max(0.0).min(0.05);
             emote_seed_opt = Some(dec);
         }
     }
@@ -102,9 +118,32 @@ fn main() {
         None
     };
 
+    let sync_baselines = SyncBaselines {
+        drift: cfg.baseline_drift,
+        res: cfg.baseline_res,
+    };
+    let sync_cfg = SyncCfg {
+        lr_fast: cfg.sync_lr_fast,
+        lr_slow: cfg.sync_lr_slow,
+        clamp_step: cfg.sync_step,
+    };
+    let mut sync_state = SyncState::default();
+    if cfg.sync {
+        let seeds = sync::merge_seeds(
+            emotive_seed_res,
+            emotive_seed_drift,
+            device_seed_pace,
+            device_seed_pause,
+            astro_seed_res,
+            astro_seed_drift,
+        );
+        sync_state.warm_start(seeds, sync_baselines);
+    }
+
     let mut drift_history = Vec::with_capacity(cfg.cycles);
     let mut resonance_history = Vec::with_capacity(cfg.cycles);
     let mut last_snapshot: Option<session::Snapshot> = None;
+    let mut last_sync_delta: Option<SyncDelta> = None;
     let mut alert_stats = if cfg.alarm {
         Some(AlertStats::default())
     } else {
@@ -194,11 +233,19 @@ fn main() {
         let mut effective_pace = prof.pace_factor;
         let mut effective_pause_ms = prof.pause_ms as i64;
         let mut stab_state_label: Option<String> = None;
+        let mut current_state = stabilizer::EmoState::Normal;
 
         if !seed_bias_applied {
             if let Some(seed) = emote_seed_opt.as_ref() {
                 let pace_bias = (seed.wpm / 160.0).clamp(0.8, 1.2);
                 effective_pace = (effective_pace * pace_bias).clamp(0.7, 1.3);
+            }
+            if cfg.sync {
+                effective_pace = (effective_pace + sync_state.seeds.pace_bias).clamp(0.7, 1.3);
+                effective_pause_ms =
+                    (effective_pause_ms + sync_state.seeds.pause_bias_ms).clamp(20, 250);
+                res = metrics::clamp01(res + sync_state.seeds.res_warm);
+                drift = metrics::clamp01(drift - sync_state.seeds.drift_soft);
             }
             seed_bias_applied = true;
         }
@@ -218,6 +265,34 @@ fn main() {
                 viz::print_compact_stabilizer(stab.state, stab.ema_drift, stab.ema_res);
             }
             stab_state_label = Some(format!("{:?}", stab.state));
+            current_state = stab.state;
+        }
+
+        if let Some(mut advice) = astro_advice {
+            if let Some(stab) = stabilizer.as_ref() {
+                if matches!(stab.state, stabilizer::EmoState::Overheat) {
+                    advice.pace_delta -= 0.02;
+                    advice.pause_delta_ms += 15;
+                }
+            }
+            effective_pace = (effective_pace + advice.pace_delta).clamp(0.7, 1.3);
+            effective_pause_ms = (effective_pause_ms + advice.pause_delta_ms).clamp(20, 250);
+        }
+
+        let mut sync_delta: Option<SyncDelta> = None;
+        if cfg.sync {
+            let (pace_delta, pause_delta_ms, res_boost, drift_relief) =
+                sync_state.step(drift, res, current_state, &sync_cfg);
+            effective_pace += pace_delta;
+            effective_pause_ms += pause_delta_ms;
+            res = metrics::clamp01(res + res_boost);
+            drift = metrics::clamp01(drift - drift_relief);
+            sync_delta = Some(SyncDelta {
+                pace_delta,
+                pause_delta_ms,
+                res_boost,
+                drift_relief,
+            });
         }
 
         if let Some(mut advice) = astro_advice {
@@ -233,7 +308,7 @@ fn main() {
 
         let effective_pause_ms = effective_pause_ms.clamp(20, 250);
         let effective_pause_u64 = effective_pause_ms as u64;
-        let effective_pace = effective_pace.clamp(0.7, 1.3);
+        effective_pace = effective_pace.clamp(0.7, 1.3);
 
         let mut guard_flag = None;
         if cfg.guard {
@@ -308,7 +383,16 @@ fn main() {
             } else {
                 None
             },
+            sync: if idx + 1 == utterances.len() {
+                sync_delta
+            } else {
+                None
+            },
         };
+
+        if idx + 1 == utterances.len() {
+            last_sync_delta = snapshot.sync;
+        }
 
         last_articulation = Some(articulation);
         last_drift = Some(drift);

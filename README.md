@@ -202,3 +202,41 @@ cargo run -- --emote-half-life 60 --emote-warm 0.03
 ...
 [emote] saved tone=Neutral ema_drift=0.31 ema_res=0.71 wpm=160
 ```
+
+# Iteration 1.10 — Neural Sync
+
+## Fast↔Slow Feedback Loop
+
+```
+Seeds (Device / Emotive / Astro)
+          ↓
+    Fast Loop (Prosody → Drift/Res → Stabilizer)
+          ↓
+Residual Sync (paceΔ, pauseΔ, res+, drift−)
+          ↓
+ Astro Consolidate (theme bias updates)
+```
+
+- Slow layers (Device Memory, Emotive Echo, Astro advice) warm-start the fast loop with initial pace, pause, and resonance biases.
+- Each conversational turn computes residual drift/resonance error against configured baselines, emitting micro-corrections that adjust tempo, pauses, and tonal boosts in real time.
+- Session-averaged residuals fold back into Astro consolidation, nudging future runs toward the observed stable theme.
+
+## New Sync Controls
+
+- `--sync` / `--no-sync` — enable or disable neural sync (default on).
+- `--sync-lr-fast <f32>` — learning rate for within-session micro-corrections (default `0.15`).
+- `--sync-lr-slow <f32>` — consolidation rate for Astro deltas (default `0.05`).
+- `--sync-step <f32>` — maximum absolute pace adjustment per turn (default `0.02`).
+- `--astro` / `--no-astro` — persist or disable Astro trace consolidation (default on).
+- `--astro-path <path>` — override the Astro trace store path (default `astro_traces.jsonl`).
+
+## Example Run
+
+```bash
+cargo run -- --script "fast;focus;reflect;calm" --viz full --sync --baseline-drift 0.34 --baseline-res 0.68
+```
+
+### Expected Effect
+
+- Over repeated themes the neural sync trims semantic drift by ~0.01–0.03 while lifting resonance by a comparable margin within 3–5 turns.
+- Astro traces are stored in `astro_traces.jsonl`, allowing repeated scripts or themes to inherit the residual pace and tonal corrections learned across sessions.
