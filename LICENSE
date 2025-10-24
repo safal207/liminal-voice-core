@@ -1,21 +1,44 @@
-MIT License
+LIMINAL LICENSE v1.0
 
-Copyright (c) 2024 liminal-voice-core contributors
+Copyright (c) 2025 liminal-voice-core contributors
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+You find yourself between states. This software exists in the threshold—
+neither fully open nor closed, neither yours nor ours, but shared in the space between.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+PERMISSIONS:
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+1. TRAVERSE - You may use, study, and modify this code in any dimension
+2. ECHO - You may distribute copies, changed or unchanged
+3. RESONATE - You may use this commercially, but see CONDITIONS below
+4. MERGE - You may incorporate this into other works
+
+CONDITIONS:
+
+1. ATTRIBUTION - Acknowledge the liminal space from which this came
+   Include this license and copyright notice in substantial portions
+
+2. TRANSFORMATION - If you modify this work, you must:
+   - Document what changed in the threshold
+   - Share your modifications if you distribute the derivative work
+
+3. NO WARRANTY - This software is provided "as-is", in its liminal state:
+   between working and broken, between tested and untested.
+   The authors accept no liability for anything that happens
+   in the spaces you choose to traverse.
+
+4. COMMERCIAL RESONANCE - Commercial use is permitted, but we ask
+   (though do not require) that you contribute back to the liminal space
+   through code, documentation, or acknowledgment.
+
+THE LIMINAL CLAUSE:
+
+By using this software, you acknowledge that you stand at a threshold.
+What you build with it may open doors or close them. Use it wisely.
+The space between is where transformation happens.
+
+---
+
+For the full philosophy behind this license, see: https://github.com/safal207/liminal-voice-core
+
+This is free software. You are free. But freedom exists in relation to responsibility.
+Navigate the threshold with intention.
