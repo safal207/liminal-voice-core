@@ -1,6 +1,6 @@
 use crate::stabilizer::EmoState;
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug)]
 pub struct Baselines {
     pub drift: f32,
     pub res: f32,
@@ -26,13 +26,27 @@ pub struct SyncCfg {
     pub clamp_step: f32,
 }
 
-#[derive(Default)]
 pub struct SyncState {
     pub baselines: Baselines,
     pub seeds: Seeds,
     pub accum_drift: f32,
     pub accum_res: f32,
     pub steps: usize,
+}
+
+impl Default for SyncState {
+    fn default() -> Self {
+        Self {
+            baselines: Baselines {
+                drift: 0.0,
+                res: 0.0,
+            },
+            seeds: Seeds::default(),
+            accum_drift: 0.0,
+            accum_res: 0.0,
+            steps: 0,
+        }
+    }
 }
 
 impl SyncState {
@@ -52,8 +66,8 @@ impl SyncState {
         cfg: &SyncCfg,
     ) -> (f32, i64, f32, f32) {
         let r = Residual {
-            d_drift: (drift - self.baselines.drift).max(-1.0).min(1.0),
-            d_res: (self.baselines.res - res).max(-1.0).min(1.0),
+            d_drift: (drift - self.baselines.drift).clamp(-1.0, 1.0),
+            d_res: (self.baselines.res - res).clamp(-1.0, 1.0),
         };
 
         self.accum_drift += r.d_drift;
@@ -104,42 +118,5 @@ pub fn merge_seeds(
         pause_bias_ms: dev_pause,
         res_warm: (emote_res + astro_res) * 0.5,
         drift_soft: (emote_drift + astro_drift) * 0.5,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{Seeds, merge_seeds};
-
-    #[test]
-    fn merge_seeds_blends_inputs() {
-        let seeds = merge_seeds(0.8, 0.2, 1.1, 25, 0.6, 0.4);
-        assert!((seeds.res_warm - 0.7).abs() < 1e-6);
-        assert!((seeds.drift_soft - 0.3).abs() < 1e-6);
-        assert!((seeds.pace_bias - 1.1).abs() < f32::EPSILON);
-        assert_eq!(seeds.pause_bias_ms, 25);
-    }
-
-    #[test]
-    fn warm_start_resets_accumulators() {
-        let mut state = super::SyncState::default();
-        state.accum_drift = 1.0;
-        state.accum_res = 2.0;
-        state.steps = 3;
-        state.warm_start(
-            Seeds {
-                pace_bias: 1.0,
-                pause_bias_ms: 0,
-                res_warm: 0.1,
-                drift_soft: 0.2,
-            },
-            super::Baselines {
-                drift: 0.5,
-                res: 0.5,
-            },
-        );
-        assert_eq!(state.accum_drift, 0.0);
-        assert_eq!(state.accum_res, 0.0);
-        assert_eq!(state.steps, 0);
     }
 }

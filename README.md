@@ -240,3 +240,4 @@ cargo run -- --script "fast;focus;reflect;calm" --viz full --sync --baseline-dri
 
 - Over repeated themes the neural sync trims semantic drift by ~0.01–0.03 while lifting resonance by a comparable margin within 3–5 turns.
 - Astro traces are stored in `astro_traces.jsonl`, allowing repeated scripts or themes to inherit the residual pace and tonal corrections learned across sessions.
+- The final snapshot in each session log now embeds `sync` deltas (`pace_delta`, `pause_delta`, `res_boost`, `drift_relief`) so downstream tools can visualize how the fast loop settled.
