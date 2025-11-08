@@ -8,6 +8,7 @@
 📿 **[Philosophical Vision](VISION.md)** — Analysis through Buddhist & Kabbalistic wisdom
 📐 **[Iteration 1.11 Plan](ITERATION_1.11_PLAN.md)** — Awareness Layer (Meta-cognition)
 💝 **[Iteration 1.12 Plan](ITERATION_1.12_PLAN.md)** — Compassion Metric (Karuṇā)
+🤫 **[Iteration 1.13 Plan](ITERATION_1.13_PLAN.md)** — Silence Detection (Mauna)
 
 ---
 
