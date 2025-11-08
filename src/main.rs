@@ -64,6 +64,20 @@ fn main() {
     };
     let mut astro_session_stats = AstroSessionStats::default();
 
+    let mut astro_seed_res = 0.0;
+    let mut astro_seed_drift = 0.0;
+    if cfg.sync && cfg.astro && !astro_theme.is_empty() {
+        if let Some(store) = astro_store.as_ref() {
+            if let Some(bias) = store.suggest_sync(&astro_theme) {
+                let stability = bias.stability.clamp(0.0, 1.0);
+                let visits_factor = (bias.visits as f32).min(12.0) / 12.0;
+                let weight = 0.4 + 0.6 * ((stability + visits_factor) * 0.5);
+                astro_seed_res = (bias.res_bias * weight).clamp(-0.05, 0.05);
+                astro_seed_drift = ((-bias.drift_bias) * weight).clamp(0.0, 0.05);
+            }
+        }
+    }
+
     let device_key = format!("{:?}", mode);
     let mut mem_store = if cfg.memory {
         device_memory::DeviceMemoryStore::load(&cfg.memory_path)
@@ -149,7 +163,6 @@ fn main() {
     let mut drift_history = Vec::with_capacity(cfg.cycles);
     let mut resonance_history = Vec::with_capacity(cfg.cycles);
     let mut last_snapshot: Option<session::Snapshot> = None;
-    let mut last_sync_delta: Option<SyncDelta> = None;
     let mut alert_stats = if cfg.alarm {
         Some(AlertStats::default())
     } else {
@@ -440,10 +453,6 @@ fn main() {
             meta_doubt: meta_cognition.as_ref().map(|m| m.doubt),
         };
 
-        if idx + 1 == utterances.len() {
-            last_sync_delta = snapshot.sync;
-        }
-
         last_articulation = Some(articulation);
         last_drift = Some(drift);
         last_res = Some(res);
@@ -466,6 +475,21 @@ fn main() {
         if let Some(stats) = alert_stats.as_mut() {
             alerts::update(stats, drift, res, cfg.baseline_drift, cfg.baseline_res);
         }
+    }
+
+    let (astro_delta_drift, astro_delta_res) = if cfg.sync {
+        sync_state.to_slow_increments(&sync_cfg)
+    } else {
+        (0.0, 0.0)
+    };
+
+    if cfg.sync && cfg.astro && !astro_theme.is_empty() {
+        if let Some(store) = astro_store.as_mut() {
+            let now_ts = current_unix_secs();
+            store.fold_sync_delta(&astro_theme, astro_delta_drift, astro_delta_res, now_ts);
+        }
+        astro_session_stats.bias_drift += astro_delta_drift;
+        astro_session_stats.boost_res += astro_delta_res;
     }
 
     println!("[viz] resonance  {}", spark::sparkline(&resonance_history));

@@ -20,6 +20,8 @@ pub struct AstroTrace {
     pub visits: u32,
     pub last_ts: i64,
     pub emo_tag: bool,
+    pub sync_drift_bias: f32,
+    pub sync_res_bias: f32,
 }
 
 impl AstroTrace {
@@ -32,6 +34,8 @@ impl AstroTrace {
             visits: 0,
             last_ts: now,
             emo_tag: false,
+            sync_drift_bias: 0.0,
+            sync_res_bias: 0.0,
         }
     }
 
@@ -56,14 +60,16 @@ impl AstroTrace {
 
     fn to_json_line(&self) -> String {
         format!(
-            "{{\"key\":\"{}\",\"ema_drift\":{:.6},\"ema_res\":{:.6},\"stability\":{:.6},\"visits\":{},\"last_ts\":{},\"emo_tag\":{}}}",
+            "{{\"key\":\"{}\",\"ema_drift\":{:.6},\"ema_res\":{:.6},\"stability\":{:.6},\"visits\":{},\"last_ts\":{},\"emo_tag\":{},\"sync_drift\":{:.6},\"sync_res\":{:.6}}}",
             self.key,
             self.ema_drift,
             self.ema_res,
             self.stability,
             self.visits,
             self.last_ts,
-            self.emo_tag
+            self.emo_tag,
+            self.sync_drift_bias,
+            self.sync_res_bias
         )
     }
 
@@ -88,6 +94,8 @@ impl AstroTrace {
                 "visits" => trace.visits = value.parse().ok()?,
                 "last_ts" => trace.last_ts = value.parse().ok()?,
                 "emo_tag" => trace.emo_tag = matches!(value, "true" | "1"),
+                "sync_drift" => trace.sync_drift_bias = value.parse().unwrap_or(0.0),
+                "sync_res" => trace.sync_res_bias = value.parse().unwrap_or(0.0),
                 _ => {}
             }
         }
@@ -104,6 +112,14 @@ pub struct AstroAdvice {
     pub res_bias: f32,
     pub pace_delta: f32,
     pub pause_delta_ms: i64,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct AstroSyncBias {
+    pub drift_bias: f32,
+    pub res_bias: f32,
+    pub visits: u32,
+    pub stability: f32,
 }
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -197,6 +213,43 @@ impl AstroStore {
         Some(advice)
     }
 
+    pub fn fold_sync_delta(&mut self, key: &str, drift_bias: f32, res_bias: f32, now: i64) {
+        if drift_bias.abs() < f32::EPSILON && res_bias.abs() < f32::EPSILON {
+            return;
+        }
+
+        let mut trace = self
+            .cache
+            .get(key)
+            .cloned()
+            .unwrap_or_else(|| AstroTrace::new(key.to_string(), now));
+
+        trace.sync_drift_bias = (trace.sync_drift_bias + drift_bias).clamp(-0.12, 0.12);
+        trace.sync_res_bias = (trace.sync_res_bias + res_bias).clamp(-0.12, 0.12);
+        trace.stability =
+            (trace.stability + (res_bias.abs() + drift_bias.abs()) * 0.5).clamp(0.0, 1.0);
+        trace.last_ts = now;
+        trace.visits = trace.visits.saturating_add(1);
+
+        self.insert_trace(trace.clone());
+        if let Err(err) = self.append_trace(&trace) {
+            eprintln!("[astro] failed to persist trace: {}", err);
+        }
+    }
+
+    pub fn suggest_sync(&self, key: &str) -> Option<AstroSyncBias> {
+        let trace = self.cache.get(key)?;
+        if trace.sync_drift_bias.abs() < f32::EPSILON && trace.sync_res_bias.abs() < f32::EPSILON {
+            return None;
+        }
+        Some(AstroSyncBias {
+            drift_bias: trace.sync_drift_bias,
+            res_bias: trace.sync_res_bias,
+            visits: trace.visits,
+            stability: trace.stability,
+        })
+    }
+
     pub fn consolidate(&mut self, key: &str, drift: f32, res: f32, emo_tag: bool, now: i64) {
         let mut trace = self
             .cache
@@ -268,6 +321,24 @@ pub fn topic_key(text: &str, tone: ToneTag) -> String {
     format!("astro-{:05x}{:05x}", a_val, b_val)
 }
 
+pub fn normalize_theme(script: Option<&str>, utterances: &[String]) -> String {
+    if let Some(raw) = script {
+        let trimmed = raw.trim();
+        if !trimmed.is_empty() {
+            return trimmed.to_ascii_lowercase();
+        }
+    }
+
+    for line in utterances {
+        let candidate = line.trim();
+        if !candidate.is_empty() {
+            return utils::normalize_text(candidate).to_ascii_lowercase();
+        }
+    }
+
+    String::new()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -294,12 +365,16 @@ mod tests {
             visits: 3,
             last_ts: 42,
             emo_tag: true,
+            sync_drift_bias: -0.015,
+            sync_res_bias: 0.02,
         };
         let line = trace.to_json_line();
         let parsed = AstroTrace::from_json_line(&line).expect("parsed");
         assert_eq!(parsed.key, trace.key);
         assert!((parsed.ema_drift - trace.ema_drift).abs() < 1e-6);
         assert!(parsed.emo_tag);
+        assert!((parsed.sync_drift_bias - trace.sync_drift_bias).abs() < 1e-6);
+        assert!((parsed.sync_res_bias - trace.sync_res_bias).abs() < 1e-6);
     }
 
     #[test]

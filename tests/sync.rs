@@ -33,7 +33,7 @@ fn step_reacts_to_high_drift_low_res() {
         "res_boost should encourage resonance recovery"
     );
     assert!(
-        drift_relief <= f32::EPSILON,
+        drift_relief.abs() <= f32::EPSILON,
         "drift_relief stays near zero when drift is high"
     );
 }
@@ -90,4 +90,29 @@ fn clamp_limits_slow_bias() {
     let (drift_bias, res_bias) = sync.to_slow_increments(&cfg);
     assert_eq!(drift_bias, -0.03);
     assert_eq!(res_bias, 0.03);
+}
+
+#[test]
+fn warm_start_resets_accumulators() {
+    let mut sync = SyncState::default();
+    sync.accum_drift = 1.0;
+    sync.accum_res = 2.0;
+    sync.steps = 3;
+
+    sync.warm_start(
+        Seeds {
+            pace_bias: 0.02,
+            pause_bias_ms: 5,
+            res_warm: 0.01,
+            drift_soft: 0.01,
+        },
+        Baselines {
+            drift: 0.3,
+            res: 0.7,
+        },
+    );
+
+    assert_eq!(sync.accum_drift, 0.0);
+    assert_eq!(sync.accum_res, 0.0);
+    assert_eq!(sync.steps, 0);
 }
