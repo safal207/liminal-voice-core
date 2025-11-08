@@ -37,6 +37,11 @@ fn session_writes_jsonl() -> std::io::Result<()> {
         state: None,
         emote_state: None,
         sync: None,
+        meta_self_drift: None,
+        meta_self_resonance: None,
+        meta_confidence: None,
+        meta_clarity: None,
+        meta_doubt: None,
     };
 
     let snapshot2 = session::Snapshot {

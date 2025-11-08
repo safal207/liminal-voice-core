@@ -1,3 +1,4 @@
+use crate::awareness::MetaCognition;
 use crate::metrics;
 use crate::stabilizer::EmoState;
 
@@ -29,6 +30,7 @@ pub fn print_table(
     total_ms: u128,
     stab_state: Option<&str>,
     emote_seed: Option<&str>,
+    meta_cognition: Option<&MetaCognition>,
 ) -> Vec<String> {
     let mut lines = Vec::new();
     let border = format!(
@@ -66,6 +68,25 @@ pub fn print_table(
     }
     if let Some(seed) = emote_seed {
         lines.push(format_row("Emotive Seed", seed));
+    }
+
+    // Meta-cognition metrics (if available)
+    if let Some(meta) = meta_cognition {
+        lines.push(format_row(
+            "Meta-Cognition",
+            &format!("self_d={:.2} self_r={:.2}", meta.self_drift, meta.self_resonance),
+        ));
+        lines.push(format_row(
+            "  Confidence/Clarity",
+            &format!(
+                "conf={:.2} clarity={:.2} doubt={:.2}",
+                meta.confidence, meta.clarity, meta.doubt
+            ),
+        ));
+
+        if meta.should_express_doubt() {
+            lines.push(format_row("  Status", "⚠️  UNCERTAIN STATE"));
+        }
     }
 
     lines.push(border);

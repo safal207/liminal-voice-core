@@ -38,13 +38,13 @@ pub struct Config {
     pub astro_cache: usize,
     pub memory: bool,
     pub memory_path: String,
-    pub astro: bool,
-    pub astro_path: String,
-    pub astro_cache: usize,
     pub emote: bool,
     pub emote_path: String,
     pub emote_half_life: u32,
     pub emote_warm: f32,
+    pub awareness: bool,
+    pub meta_viz: bool,
+    pub meta_stab_alpha: f32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -102,13 +102,13 @@ impl Default for Config {
             astro_cache: 512,
             memory: true,
             memory_path: "device_memory.jsonl".to_string(),
-            astro: true,
-            astro_path: "astro_traces.jsonl".to_string(),
-            astro_cache: 512,
             emote: true,
             emote_path: "emote_seed.jsonl".to_string(),
             emote_half_life: 180,
             emote_warm: 0.02,
+            awareness: false,
+            meta_viz: false,
+            meta_stab_alpha: 0.25,
         }
     }
 }
@@ -256,6 +256,18 @@ pub fn from_env_or_args() -> Config {
         cfg.emote_warm = warm;
     }
 
+    if let Some(awareness) = parse_env_bool("LIMINAL_AWARENESS") {
+        cfg.awareness = awareness;
+    }
+
+    if let Some(meta_viz) = parse_env_bool("LIMINAL_META_VIZ") {
+        cfg.meta_viz = meta_viz;
+    }
+
+    if let Some(alpha) = parse_env_f32("LIMINAL_META_STAB_ALPHA") {
+        cfg.meta_stab_alpha = alpha;
+    }
+
     if let Ok(dir) = env::var("LIMINAL_LOG_DIR") {
         if !dir.trim().is_empty() {
             cfg.log_dir = dir;
@@ -382,28 +394,6 @@ pub fn from_env_or_args() -> Config {
                     }
                 }
             }
-            "--astro" => {
-                cfg.astro = true;
-            }
-            "--no-astro" => {
-                cfg.astro = false;
-            }
-            "--astro-path" => {
-                if let Some(val) = args.next() {
-                    if !val.trim().is_empty() {
-                        cfg.astro_path = val;
-                    }
-                }
-            }
-            "--astro-cache" => {
-                if let Some(val) = args.next() {
-                    if let Ok(v) = val.parse::<usize>() {
-                        if v > 0 {
-                            cfg.astro_cache = v;
-                        }
-                    }
-                }
-            }
             "--emote" => {
                 cfg.emote = true;
             }
@@ -428,6 +418,22 @@ pub fn from_env_or_args() -> Config {
                 if let Some(val) = args.next() {
                     if let Ok(v) = val.parse::<f32>() {
                         cfg.emote_warm = v;
+                    }
+                }
+            }
+            "--awareness" => {
+                cfg.awareness = true;
+            }
+            "--no-awareness" => {
+                cfg.awareness = false;
+            }
+            "--meta-viz" => {
+                cfg.meta_viz = true;
+            }
+            "--meta-stab-alpha" => {
+                if let Some(val) = args.next() {
+                    if let Ok(v) = val.parse::<f32>() {
+                        cfg.meta_stab_alpha = v;
                     }
                 }
             }

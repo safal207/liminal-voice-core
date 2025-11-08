@@ -12,7 +12,7 @@ fn bar_full_length() {
 
 #[test]
 fn print_table_outputs_lines() {
-    let lines = viz::print_table(0.12, 0.88, 162.0, 0.74, "Neutral", 45, 32, 90, None, None);
+    let lines = viz::print_table(0.12, 0.88, 162.0, 0.74, "Neutral", 45, 32, 90, None, None, None);
     assert!(!lines.is_empty());
     assert!(lines.iter().any(|line| line.contains("Semantic Drift")));
 }
