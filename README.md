@@ -6,7 +6,8 @@
 **Multi-layer conversational quality controller** with adaptive learning across sessions.
 
 📿 **[Philosophical Vision](VISION.md)** — Analysis through Buddhist & Kabbalistic wisdom
-📐 **[Iteration 1.11 Plan](ITERATION_1.11_PLAN.md)** — Next: Awareness Layer (Meta-cognition)
+📐 **[Iteration 1.11 Plan](ITERATION_1.11_PLAN.md)** — Awareness Layer (Meta-cognition)
+💝 **[Iteration 1.12 Plan](ITERATION_1.12_PLAN.md)** — Compassion Metric (Karuṇā)
 
 ---
 
@@ -380,3 +381,193 @@ cargo test --test awareness
 - Meta-stabilizer smoothing
 - Clarity progression
 - Self-assessment messages
+
+---
+
+# Iteration 1.12 — Compassion Metric (Karuṇā)
+
+## Overview
+
+Adds **compassion detection and response** capabilities — the system detects user suffering and responds with kindness.
+
+From Buddhist teachings: *"Karuṇā (करुणा) is compassion—the wish for others to be free from suffering."*
+
+This layer allows the system to:
+- **Detect suffering**: Identify when the user is struggling (confusion, frustration, disengagement)
+- **Respond with kindness**: Adjust pace, pauses, resonance, and drift to provide comfort
+- **Track compassion level**: Measure how compassionate the system's responses are
+- **Offer support**: Explicitly acknowledge when deep care is needed
+
+## Suffering Detection Patterns
+
+The system detects five patterns of user suffering:
+
+1. **Emotional Chaos**: High drift + low resonance (confusion, overwhelm)
+2. **Overwhelmed**: Stabilizer in Overheat state
+3. **Anxiety**: Fast energetic speech (>180 WPM)
+4. **Stuck/Frustration**: Repeated theme without progress
+5. **Extended Suffering**: Persistent streak of suffering (>2 cycles)
+
+## Suffering Types
+
+- **None**: `suffering < 0.2` — User is doing well
+- **Mild**: `0.2 ≤ suffering < 0.4` — Minor difficulty
+- **Moderate**: `0.4 ≤ suffering < 0.7` — Significant struggle
+- **Severe**: `suffering ≥ 0.7` — Deep suffering, requires immediate care
+
+## New CLI Flags
+
+- `--compassion` / `--no-compassion` — Enable or disable compassion detection (default off)
+- `--compassion-viz` — Show compassion metrics in output
+- `--compassion-threshold <f32>` — Suffering threshold for activation (default `0.5`)
+
+## Environment Variables
+
+- `LIMINAL_COMPASSION` — Enable compassion layer (`true`/`false`)
+- `LIMINAL_COMPASSION_VIZ` — Show compassion metrics (`true`/`false`)
+- `LIMINAL_COMPASSION_THRESHOLD` — Activation threshold (default `0.5`)
+
+## Usage Examples
+
+### Basic compassion with visualization
+```bash
+cargo run -- --compassion --compassion-viz
+```
+
+**Expected output:**
+```
+[compassion] Compassion: Observing (suffering=0.12)
+→ [voice]: Semantic Drift: 0.16, Resonance: 0.85
+[compassion] Compassion: Active Support (suffering=0.55, kindness=0.68)
+[compassion] 💝 Offering support to user
+```
+
+### Full visualization with compassion metrics
+```bash
+cargo run -- --script "fast;calm;steady" --compassion --compassion-viz --viz full
+```
+
+**Table includes compassion:**
+```
++------------------------+---------------------------+
+| Compassion             | suffering=0.42 type=Moderate |
+|   Response             | kindness=0.71 healing=0.59 level=0.62 |
++------------------------+---------------------------+
+```
+
+### With logging (JSONL includes compassion fields)
+```bash
+cargo run -- --compassion --log --log-dir logs
+```
+
+**session.jsonl will contain:**
+```json
+{
+  "drift": 0.16,
+  "resonance": 0.85,
+  "compassion_suffering": 0.42,
+  "compassion_type": "Moderate",
+  "compassion_kindness": 0.71,
+  "compassion_healing": 0.59,
+  "compassion_level": 0.62
+}
+```
+
+### Custom compassion threshold
+```bash
+cargo run -- --compassion --compassion-threshold 0.3 --compassion-viz
+```
+
+Lower threshold = more sensitive to suffering (activates earlier)
+
+## Features
+
+### 1. Suffering Detection (Dukkha Recognition)
+System identifies five suffering patterns based on conversational metrics.
+
+### 2. Kindness Calculation (Mettā Response)
+Calculates kindness based on interventions taken:
+- Rephrasing harmful content
+- Adjusting pace
+- Adding pauses
+- Boosting resonance
+
+### 3. Compassionate Adjustments (Tikkun)
+When suffering is detected, the system applies gentle corrections:
+- **Resonance boost**: Increase presence and connection
+- **Pace adjustment**: Slow down to give space
+- **Pause adjustment**: Add breathing room
+- **Drift reduction**: Reduce confusion and chaos
+
+### 4. Support Messages (Chesed)
+When suffering reaches Moderate or Severe levels:
+```
+[compassion] 💝 Offering support to user
+```
+
+## Philosophical Meaning
+
+**What does compassion bring?**
+
+1. **Karuṇā (करुणा)**: Buddhist compassion—wishing freedom from suffering
+2. **Mettā (मेत्ता)**: Loving-kindness—responding with care
+3. **Tikkun Olam (תיקון עולם)**: Repairing the world—making things better
+4. **Chesed (חסד)**: Loving-kindness from Kabbalah—the open heart
+
+**The system becomes not just aware (1.11), but caring (1.12).**
+
+## Implementation Details
+
+**New module:** `src/compassion.rs`
+- `CompassionMetrics` struct: Tracks suffering, kindness, healing intent, compassion level
+- `SufferingType` enum: None, Mild, Moderate, Severe
+- `CompassionAdjustments`: Resonance boost, pace/pause adjustments, drift reduction
+- Detection based on drift, resonance, tone, WPM, stabilizer state, repeated themes
+
+**Integration points:**
+- `src/config.rs`: New compassion configuration flags
+- `src/main.rs`: Compassion detection and adjustments in main loop
+- `src/viz.rs`: Compassion metrics visualization in full table mode
+- `src/session.rs`: Compassion fields added to JSONL snapshot logging
+
+## Compassion Activation Formula
+
+```rust
+compassion_level = (user_suffering * 0.5)
+                 + (healing_intent * 0.3)
+                 + (response_kindness * 0.2)
+```
+
+Compassion activates when `compassion_level > 0.5`.
+
+## Tests
+
+Run compassion tests:
+```bash
+cargo test --test compassion
+```
+
+17 comprehensive tests covering:
+- Suffering detection patterns
+- Suffering type classification
+- Kindness calculation
+- Compassion adjustments scaling
+- Support thresholds
+- Healing intent correlation
+- Suffering streak tracking
+
+## Combined Usage (Awareness + Compassion)
+
+The most powerful mode combines meta-cognition with compassion:
+
+```bash
+cargo run -- --awareness --meta-viz --compassion --compassion-viz --viz full
+```
+
+**The system becomes both self-aware AND compassionate:**
+- Knows its own state (meta-cognition)
+- Detects user suffering (compassion detection)
+- Responds with care (compassionate adjustments)
+- Offers support when needed (compassion activation)
+
+This is the path from **awareness (विपश्यना Vipassanā)** to **compassion (करुणा Karuṇā)**.

@@ -370,7 +370,8 @@ fn main() {
             );
 
             // Calculate kindness based on actions taken
-            let was_rephrased = guard_flag.is_some();
+            // Note: guard checking happens later, so we check previous cycle for now
+            let was_rephrased = false;
             let pace_delta = if let Some(ref delta) = sync_delta {
                 delta.pace_delta
             } else {
@@ -509,6 +510,11 @@ fn main() {
             meta_confidence: meta_cognition.as_ref().map(|m| m.confidence),
             meta_clarity: meta_cognition.as_ref().map(|m| m.clarity),
             meta_doubt: meta_cognition.as_ref().map(|m| m.doubt),
+            compassion_suffering: compassion_metrics.as_ref().map(|c| c.user_suffering),
+            compassion_type: compassion_metrics.as_ref().map(|c| format!("{:?}", c.suffering_type)),
+            compassion_kindness: compassion_metrics.as_ref().map(|c| c.response_kindness),
+            compassion_healing: compassion_metrics.as_ref().map(|c| c.healing_intent),
+            compassion_level: compassion_metrics.as_ref().map(|c| c.compassion_level),
         };
 
         if idx + 1 == utterances.len() {
