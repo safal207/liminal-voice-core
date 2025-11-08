@@ -1,6 +1,7 @@
 mod adaptive_qa;
 mod alerts;
 mod astro;
+mod awareness;
 mod config;
 mod device;
 mod device_memory;
@@ -21,6 +22,7 @@ use std::time::Instant;
 
 use alerts::AlertStats;
 use astro::AstroSessionStats;
+use awareness::{MetaCognition, MetaStabilizer};
 use config::VizMode;
 use session::SyncDelta;
 use softguard::{GuardAction, GuardConfig};
@@ -46,7 +48,7 @@ fn main() {
         utterances = padded;
     }
 
-    let astro_theme = astro::normalize_theme(cfg.script.as_deref(), &utterances);
+    // let astro_theme = astro::normalize_theme(cfg.script.as_deref(), &utterances);
 
     let mode = device::detect(&cfg.mode);
     cfg.mode = match mode {
@@ -132,6 +134,10 @@ fn main() {
         None
     };
 
+    // Astro seeds (for now just default to 0.0, could be loaded from astro store)
+    let astro_seed_res = 0.0;
+    let astro_seed_drift = 0.0;
+
     let sync_baselines = SyncBaselines {
         drift: cfg.baseline_drift,
         res: cfg.baseline_res,
@@ -179,6 +185,19 @@ fn main() {
             cool_steps: cfg.stab_cool,
             calm_boost: cfg.stab_calm,
         }))
+    } else {
+        None
+    };
+
+    // Meta-cognition layer
+    let mut meta_cognition = if cfg.awareness {
+        Some(MetaCognition::new())
+    } else {
+        None
+    };
+
+    let mut meta_stabilizer = if cfg.awareness {
+        Some(MetaStabilizer::new(cfg.meta_stab_alpha))
     } else {
         None
     };
@@ -308,6 +327,32 @@ fn main() {
             });
         }
 
+        // Meta-cognition observation
+        if let Some(ref mut meta) = meta_cognition {
+            let sync_correction = if let Some(ref delta) = sync_delta {
+                delta.pace_delta.abs() + (delta.pause_delta_ms as f32 / 100.0)
+            } else {
+                0.0
+            };
+
+            let stab_state_str = stab_state_label.as_deref().unwrap_or("None");
+            meta.observe(measured_drift, measured_res, stab_state_str, sync_correction);
+
+            // Update meta-stabilizer
+            if let Some(ref mut meta_stab) = meta_stabilizer {
+                meta_stab.update(meta);
+            }
+
+            // Log meta-cognition state
+            if cfg.meta_viz {
+                println!("[meta] {}", meta.self_assess());
+
+                if meta.should_express_doubt() {
+                    println!("[meta] ⚠️  System is uncertain about measurements");
+                }
+            }
+        }
+
         if let Some(mut advice) = astro_advice {
             if let Some(stab) = stabilizer.as_ref() {
                 if matches!(stab.state, stabilizer::EmoState::Overheat) {
@@ -401,6 +446,11 @@ fn main() {
             } else {
                 None
             },
+            meta_self_drift: meta_cognition.as_ref().map(|m| m.self_drift),
+            meta_self_resonance: meta_cognition.as_ref().map(|m| m.self_resonance),
+            meta_confidence: meta_cognition.as_ref().map(|m| m.confidence),
+            meta_clarity: meta_cognition.as_ref().map(|m| m.clarity),
+            meta_doubt: meta_cognition.as_ref().map(|m| m.doubt),
         };
 
         last_articulation = Some(articulation);
@@ -471,6 +521,7 @@ fn main() {
                 snap.total_ms,
                 stab_detail.as_deref(),
                 emote_seed_display.as_deref(),
+                meta_cognition.as_ref(),
             );
         }
     }

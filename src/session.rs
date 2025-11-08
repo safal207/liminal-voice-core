@@ -29,6 +29,11 @@ pub struct Snapshot {
     pub state: Option<String>,
     pub emote_state: Option<String>,
     pub sync: Option<SyncDelta>,
+    pub meta_self_drift: Option<f32>,
+    pub meta_self_resonance: Option<f32>,
+    pub meta_confidence: Option<f32>,
+    pub meta_clarity: Option<f32>,
+    pub meta_doubt: Option<f32>,
 }
 
 #[derive(Clone, Copy)]
@@ -84,8 +89,14 @@ pub fn write(sess: &mut Session, snap: &Snapshot) -> io::Result<()> {
         None => "null".to_string(),
     };
 
+    let meta_self_drift_value = snap.meta_self_drift.map_or("null".to_string(), |v| format!("{:.3}", v));
+    let meta_self_resonance_value = snap.meta_self_resonance.map_or("null".to_string(), |v| format!("{:.3}", v));
+    let meta_confidence_value = snap.meta_confidence.map_or("null".to_string(), |v| format!("{:.3}", v));
+    let meta_clarity_value = snap.meta_clarity.map_or("null".to_string(), |v| format!("{:.3}", v));
+    let meta_doubt_value = snap.meta_doubt.map_or("null".to_string(), |v| format!("{:.3}", v));
+
     let line = format!(
-        r#"{{"ts":"{}","device":"{}","drift":{:.3},"resonance":{:.3},"wpm":{:.3},"articulation":{:.3},"tone":"{}","asr_ms":{},"tts_ms":{},"total_ms":{},"idx":{},"utt":"{}","guard":{},"state":{},"emote_state":{},"sync":{}}}"#,
+        r#"{{"ts":"{}","device":"{}","drift":{:.3},"resonance":{:.3},"wpm":{:.3},"articulation":{:.3},"tone":"{}","asr_ms":{},"tts_ms":{},"total_ms":{},"idx":{},"utt":"{}","guard":{},"state":{},"emote_state":{},"sync":{},"meta_self_drift":{},"meta_self_resonance":{},"meta_confidence":{},"meta_clarity":{},"meta_doubt":{}}}"#,
         escape_json(&snap.ts),
         escape_json(&snap.device),
         snap.drift,
@@ -101,7 +112,12 @@ pub fn write(sess: &mut Session, snap: &Snapshot) -> io::Result<()> {
         guard_value,
         state_value,
         emote_value,
-        sync_value
+        sync_value,
+        meta_self_drift_value,
+        meta_self_resonance_value,
+        meta_confidence_value,
+        meta_clarity_value,
+        meta_doubt_value
     );
 
     writeln!(file, "{}", line)
