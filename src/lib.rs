@@ -2,6 +2,7 @@ pub mod adaptive_qa;
 pub mod alerts;
 pub mod awareness;
 pub mod astro;
+pub mod compassion;
 pub mod config;
 pub mod device;
 pub mod device_memory;

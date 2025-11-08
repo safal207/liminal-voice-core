@@ -45,6 +45,9 @@ pub struct Config {
     pub awareness: bool,
     pub meta_viz: bool,
     pub meta_stab_alpha: f32,
+    pub compassion: bool,
+    pub compassion_viz: bool,
+    pub compassion_threshold: f32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -109,6 +112,9 @@ impl Default for Config {
             awareness: false,
             meta_viz: false,
             meta_stab_alpha: 0.25,
+            compassion: false,
+            compassion_viz: false,
+            compassion_threshold: 0.5,
         }
     }
 }
@@ -266,6 +272,18 @@ pub fn from_env_or_args() -> Config {
 
     if let Some(alpha) = parse_env_f32("LIMINAL_META_STAB_ALPHA") {
         cfg.meta_stab_alpha = alpha;
+    }
+
+    if let Some(compassion) = parse_env_bool("LIMINAL_COMPASSION") {
+        cfg.compassion = compassion;
+    }
+
+    if let Some(comp_viz) = parse_env_bool("LIMINAL_COMPASSION_VIZ") {
+        cfg.compassion_viz = comp_viz;
+    }
+
+    if let Some(thresh) = parse_env_f32("LIMINAL_COMPASSION_THRESHOLD") {
+        cfg.compassion_threshold = thresh;
     }
 
     if let Ok(dir) = env::var("LIMINAL_LOG_DIR") {
@@ -434,6 +452,22 @@ pub fn from_env_or_args() -> Config {
                 if let Some(val) = args.next() {
                     if let Ok(v) = val.parse::<f32>() {
                         cfg.meta_stab_alpha = v;
+                    }
+                }
+            }
+            "--compassion" => {
+                cfg.compassion = true;
+            }
+            "--no-compassion" => {
+                cfg.compassion = false;
+            }
+            "--compassion-viz" => {
+                cfg.compassion_viz = true;
+            }
+            "--compassion-threshold" => {
+                if let Some(val) = args.next() {
+                    if let Ok(v) = val.parse::<f32>() {
+                        cfg.compassion_threshold = v;
                     }
                 }
             }

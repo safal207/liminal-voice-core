@@ -2,6 +2,7 @@ mod adaptive_qa;
 mod alerts;
 mod astro;
 mod awareness;
+mod compassion;
 mod config;
 mod device;
 mod device_memory;
@@ -23,6 +24,7 @@ use std::time::Instant;
 use alerts::AlertStats;
 use astro::AstroSessionStats;
 use awareness::{MetaCognition, MetaStabilizer};
+use compassion::{CompassionAdjustments, CompassionMetrics};
 use config::VizMode;
 use session::SyncDelta;
 use softguard::{GuardAction, GuardConfig};
@@ -189,6 +191,13 @@ fn main() {
         None
     };
 
+    // Compassion layer
+    let mut compassion_metrics = if cfg.compassion {
+        Some(CompassionMetrics::new())
+    } else {
+        None
+    };
+
     let mut last_articulation: Option<f32> = None;
     let mut last_drift: Option<f32> = None;
     let mut last_res: Option<f32> = None;
@@ -336,6 +345,68 @@ fn main() {
 
                 if meta.should_express_doubt() {
                     println!("[meta] ⚠️  System is uncertain about measurements");
+                }
+            }
+        }
+
+        // Compassion detection and response
+        if let Some(ref mut comp) = compassion_metrics {
+            // Check if theme is repeated (from astro)
+            let repeated_theme = if let Some(ref key) = astro_key {
+                // Simple heuristic: if we've seen this theme before (would need astro store method)
+                false // TODO: implement has_trace() in astro
+            } else {
+                false
+            };
+
+            let stab_state_str = stab_state_label.as_deref().unwrap_or("Normal");
+            comp.detect_suffering(
+                measured_drift,
+                measured_res,
+                prosody.tone,
+                prosody.wpm,
+                stab_state_str,
+                repeated_theme,
+            );
+
+            // Calculate kindness based on actions taken
+            let was_rephrased = guard_flag.is_some();
+            let pace_delta = if let Some(ref delta) = sync_delta {
+                delta.pace_delta
+            } else {
+                0.0
+            };
+            let pause_delta = if let Some(ref delta) = sync_delta {
+                delta.pause_delta_ms
+            } else {
+                0
+            };
+            let res_boost = if let Some(ref delta) = sync_delta {
+                delta.res_boost
+            } else {
+                0.0
+            };
+
+            comp.calculate_kindness(was_rephrased, pace_delta, pause_delta, res_boost);
+            comp.update_compassion_level();
+
+            // Apply compassion adjustments if activated
+            if comp.should_activate_compassion() {
+                let adj = CompassionAdjustments::from_compassion(comp);
+
+                // Apply adjustments
+                res = metrics::clamp01(res + adj.resonance_boost);
+                drift = metrics::clamp01(drift - adj.drift_reduction);
+                effective_pace = (effective_pace + adj.pace_adjustment).clamp(0.7, 1.3);
+                effective_pause_ms = (effective_pause_ms + adj.pause_adjustment_ms).clamp(20, 250);
+            }
+
+            // Log compassion state
+            if cfg.compassion_viz {
+                println!("[compassion] {}", comp.status_message());
+
+                if comp.should_offer_support() {
+                    println!("[compassion] 💝 Offering support to user");
                 }
             }
         }
@@ -498,6 +569,7 @@ fn main() {
                 stab_detail.as_deref(),
                 emote_seed_display.as_deref(),
                 meta_cognition.as_ref(),
+                compassion_metrics.as_ref(),
             );
         }
     }
