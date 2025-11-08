@@ -228,22 +228,6 @@ pub fn from_env_or_args() -> Config {
         cfg.sync_step = step;
     }
 
-    if let Some(astro) = parse_env_bool("LIMINAL_ASTRO") {
-        cfg.astro = astro;
-    }
-
-    if let Ok(path) = env::var("LIMINAL_ASTRO_PATH") {
-        if !path.trim().is_empty() {
-            cfg.astro_path = path;
-        }
-    }
-
-    if let Some(cache) = parse_env_usize("LIMINAL_ASTRO_CACHE") {
-        if cache > 0 {
-            cfg.astro_cache = cache;
-        }
-    }
-
     if let Some(emote) = parse_env_bool("LIMINAL_EMOTE") {
         cfg.emote = emote;
     }
@@ -355,28 +339,6 @@ pub fn from_env_or_args() -> Config {
             }
             "--no-memory" => {
                 cfg.memory = false;
-            }
-            "--astro" => {
-                cfg.astro = true;
-            }
-            "--no-astro" => {
-                cfg.astro = false;
-            }
-            "--astro-path" => {
-                if let Some(val) = args.next() {
-                    if !val.trim().is_empty() {
-                        cfg.astro_path = val;
-                    }
-                }
-            }
-            "--astro-cache" => {
-                if let Some(val) = args.next() {
-                    if let Ok(v) = val.parse::<usize>() {
-                        if v > 0 {
-                            cfg.astro_cache = v;
-                        }
-                    }
-                }
             }
             "--memory-path" => {
                 if let Some(val) = args.next() {
