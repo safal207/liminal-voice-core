@@ -34,6 +34,11 @@ pub struct Snapshot {
     pub meta_confidence: Option<f32>,
     pub meta_clarity: Option<f32>,
     pub meta_doubt: Option<f32>,
+    pub compassion_suffering: Option<f32>,
+    pub compassion_type: Option<String>,
+    pub compassion_kindness: Option<f32>,
+    pub compassion_healing: Option<f32>,
+    pub compassion_level: Option<f32>,
 }
 
 #[derive(Clone, Copy)]
@@ -95,8 +100,14 @@ pub fn write(sess: &mut Session, snap: &Snapshot) -> io::Result<()> {
     let meta_clarity_value = snap.meta_clarity.map_or("null".to_string(), |v| format!("{:.3}", v));
     let meta_doubt_value = snap.meta_doubt.map_or("null".to_string(), |v| format!("{:.3}", v));
 
+    let comp_suffering_value = snap.compassion_suffering.map_or("null".to_string(), |v| format!("{:.3}", v));
+    let comp_type_value = snap.compassion_type.as_ref().map_or("null".to_string(), |v| format!("\"{}\"", escape_json(v)));
+    let comp_kindness_value = snap.compassion_kindness.map_or("null".to_string(), |v| format!("{:.3}", v));
+    let comp_healing_value = snap.compassion_healing.map_or("null".to_string(), |v| format!("{:.3}", v));
+    let comp_level_value = snap.compassion_level.map_or("null".to_string(), |v| format!("{:.3}", v));
+
     let line = format!(
-        r#"{{"ts":"{}","device":"{}","drift":{:.3},"resonance":{:.3},"wpm":{:.3},"articulation":{:.3},"tone":"{}","asr_ms":{},"tts_ms":{},"total_ms":{},"idx":{},"utt":"{}","guard":{},"state":{},"emote_state":{},"sync":{},"meta_self_drift":{},"meta_self_resonance":{},"meta_confidence":{},"meta_clarity":{},"meta_doubt":{}}}"#,
+        r#"{{"ts":"{}","device":"{}","drift":{:.3},"resonance":{:.3},"wpm":{:.3},"articulation":{:.3},"tone":"{}","asr_ms":{},"tts_ms":{},"total_ms":{},"idx":{},"utt":"{}","guard":{},"state":{},"emote_state":{},"sync":{},"meta_self_drift":{},"meta_self_resonance":{},"meta_confidence":{},"meta_clarity":{},"meta_doubt":{},"compassion_suffering":{},"compassion_type":{},"compassion_kindness":{},"compassion_healing":{},"compassion_level":{}}}"#,
         escape_json(&snap.ts),
         escape_json(&snap.device),
         snap.drift,
@@ -117,7 +128,12 @@ pub fn write(sess: &mut Session, snap: &Snapshot) -> io::Result<()> {
         meta_self_resonance_value,
         meta_confidence_value,
         meta_clarity_value,
-        meta_doubt_value
+        meta_doubt_value,
+        comp_suffering_value,
+        comp_type_value,
+        comp_kindness_value,
+        comp_healing_value,
+        comp_level_value
     );
 
     writeln!(file, "{}", line)

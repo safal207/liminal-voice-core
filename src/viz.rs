@@ -1,4 +1,5 @@
 use crate::awareness::MetaCognition;
+use crate::compassion::CompassionMetrics;
 use crate::metrics;
 use crate::stabilizer::EmoState;
 
@@ -31,6 +32,7 @@ pub fn print_table(
     stab_state: Option<&str>,
     emote_seed: Option<&str>,
     meta_cognition: Option<&MetaCognition>,
+    compassion: Option<&CompassionMetrics>,
 ) -> Vec<String> {
     let mut lines = Vec::new();
     let border = format!(
@@ -86,6 +88,25 @@ pub fn print_table(
 
         if meta.should_express_doubt() {
             lines.push(format_row("  Status", "⚠️  UNCERTAIN STATE"));
+        }
+    }
+
+    // Compassion metrics (if available)
+    if let Some(comp) = compassion {
+        lines.push(format_row(
+            "Compassion",
+            &format!("suffering={:.2} type={:?}", comp.user_suffering, comp.suffering_type),
+        ));
+        lines.push(format_row(
+            "  Kindness/Intent",
+            &format!(
+                "kind={:.2} healing={:.2} level={:.2}",
+                comp.response_kindness, comp.healing_intent, comp.compassion_level
+            ),
+        ));
+
+        if comp.should_offer_support() {
+            lines.push(format_row("  Status", "💝 ACTIVE SUPPORT"));
         }
     }
 

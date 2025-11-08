@@ -42,6 +42,11 @@ fn session_writes_jsonl() -> std::io::Result<()> {
         meta_confidence: None,
         meta_clarity: None,
         meta_doubt: None,
+        compassion_suffering: None,
+        compassion_type: None,
+        compassion_kindness: None,
+        compassion_healing: None,
+        compassion_level: None,
     };
 
     let snapshot2 = session::Snapshot {

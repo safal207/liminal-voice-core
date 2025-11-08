@@ -6,7 +6,8 @@
 **Multi-layer conversational quality controller** with adaptive learning across sessions.
 
 📿 **[Philosophical Vision](VISION.md)** — Analysis through Buddhist & Kabbalistic wisdom
-📐 **[Iteration 1.11 Plan](ITERATION_1.11_PLAN.md)** — Next: Awareness Layer (Meta-cognition)
+📐 **[Iteration 1.11 Plan](ITERATION_1.11_PLAN.md)** — Awareness Layer (Meta-cognition)
+💝 **[Iteration 1.12 Plan](ITERATION_1.12_PLAN.md)** — Compassion Metric (Karuṇā)
 
 ---
 
