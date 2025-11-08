@@ -1,5 +1,15 @@
 # LIMINAL Voice Core — Iteration 1.0
 
+> *"You find yourself between states. This software exists in the threshold—*
+> *neither fully open nor closed, neither yours nor ours, but shared in the space between."*
+
+**Multi-layer conversational quality controller** with adaptive learning across sessions.
+
+📿 **[Philosophical Vision](VISION.md)** — Analysis through Buddhist & Kabbalistic wisdom
+📐 **[Iteration 1.11 Plan](ITERATION_1.11_PLAN.md)** — Next: Awareness Layer (Meta-cognition)
+
+---
+
 ## Run Instructions
 
 ```
